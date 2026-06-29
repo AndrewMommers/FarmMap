@@ -3,6 +3,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { formatDate, formatCurrency } from '../lib/utils';
 import toast from 'react-hot-toast';
@@ -12,6 +13,7 @@ export function EquipmentPage() {
   const { equipment, maintenanceLogs } = useFarmData();
   const [tab, setTab] = useState<'fleet' | 'maintenance'>('fleet');
   const [search, setSearch] = useState('');
+  const [showAddEquipment, setShowAddEquipment] = useState(false);
 
   const operational = equipment.filter(e => e.status === 'operational').length;
   const inMaintenance = equipment.filter(e => e.status === 'maintenance' || e.status === 'repair').length;
@@ -29,11 +31,12 @@ export function EquipmentPage() {
 
   return (
     <div className="space-y-6">
+      <AddEquipmentModal open={showAddEquipment} onClose={() => setShowAddEquipment(false)} />
       <PageHeader
         title="Equipment & Fleet"
         subtitle="Machinery, vehicles, and maintenance records"
         actions={
-          <button className="btn-primary" onClick={() => toast.success('Add equipment – coming in full release')}>
+          <button className="btn-primary" onClick={() => setShowAddEquipment(true)}>
             <Plus className="w-4 h-4" /> Add Equipment
           </button>
         }

@@ -74,8 +74,14 @@ export default function App() {
   // ── Not authenticated → show login ────────────────────────────────────────
   if (!session) return <AuthPage />;
 
-  // ── Authenticated but no farms yet → onboarding ───────────────────────────
-  if (farms.length === 0) return <CreateFarmPage />;
+  // ── Authenticated but no farms yet → onboarding (no router needed) ────────
+  if (farms.length === 0) {
+    return (
+      <BrowserRouter>
+        <CreateFarmPage />
+      </BrowserRouter>
+    );
+  }
 
   // ── Main app ──────────────────────────────────────────────────────────────
   return (
@@ -94,6 +100,7 @@ export default function App() {
           <Route path="/reports"     element={<ReportsPage />} />
           <Route path="/compliance"  element={<CompliancePage />} />
           <Route path="/settings"    element={<SettingsPage />} />
+          <Route path="/new-farm"    element={<CreateFarmPage />} />
           <Route path="*"            element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

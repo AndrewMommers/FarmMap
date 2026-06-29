@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Check, Plus } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
@@ -7,6 +8,7 @@ import toast from 'react-hot-toast';
 export function FarmSwitcher() {
   const { activeFarmId, setActiveFarm } = useAppStore();
   const farms = useDataStore((s) => s.farms);
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const activeFarm = farms.find((f) => f.id === activeFarmId) ?? farms[0];
@@ -87,7 +89,7 @@ export function FarmSwitcher() {
           <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800">
             <button
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-farm-700 dark:text-farm-400 hover:bg-farm-50 dark:hover:bg-gray-800 font-medium transition-colors"
-              onClick={() => { setOpen(false); toast.success('Add new property – coming in full release'); }}
+              onClick={() => { setOpen(false); navigate('/new-farm'); }}
             >
               <Plus className="w-4 h-4" /> Add New Property
             </button>

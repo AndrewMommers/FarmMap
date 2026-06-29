@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { AddInventoryItemModal } from '../components/modals/AddInventoryItemModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { formatCurrency, formatDate } from '../lib/utils';
-import toast from 'react-hot-toast';
 import { Plus, Package, AlertTriangle } from 'lucide-react';
 import type { InventoryCategory } from '../types';
 
@@ -27,6 +27,7 @@ export function InventoryPage() {
   const { inventory } = useFarmData();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showAddItem, setShowAddItem] = useState(false);
 
   const lowStock = inventory.filter(i => i.minStockLevel !== undefined && i.quantity <= i.minStockLevel);
   const totalValue = inventory.reduce((s, i) => s + (i.costPerUnit ?? 0) * i.quantity, 0);
@@ -42,11 +43,12 @@ export function InventoryPage() {
 
   return (
     <div className="space-y-6">
+      <AddInventoryItemModal open={showAddItem} onClose={() => setShowAddItem(false)} />
       <PageHeader
         title="Inventory & Stores"
         subtitle="Chemicals, seed, fertiliser, fuel, feed & parts"
         actions={
-          <button className="btn-primary" onClick={() => toast.success('Add item – coming in full release')}>
+          <button className="btn-primary" onClick={() => setShowAddItem(true)}>
             <Plus className="w-4 h-4" /> Add Item
           </button>
         }

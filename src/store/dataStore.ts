@@ -40,6 +40,7 @@ interface DataStore {
 
   // ── Farms ────────────────────────────────────────────────────────────────
   addFarm: (userId: string, data: Omit<Farm, 'id' | 'createdAt'>) => Promise<Farm>;
+  updateFarm: (id: string, data: Partial<Omit<Farm, 'id' | 'createdAt'>>) => Promise<void>;
 
   // ── Paddocks ─────────────────────────────────────────────────────────────
   addPaddock: (farmId: string, data: Omit<Paddock, 'id' | 'farmId'>) => Paddock;
@@ -71,7 +72,7 @@ interface DataStore {
 }
 
 const EMPTY: Omit<DataStore,
-  'loadFromSupabase' | 'clearData' | 'subscribeToRealtime' | 'addFarm' |
+  'loadFromSupabase' | 'clearData' | 'subscribeToRealtime' | 'addFarm' | 'updateFarm' |
   'addPaddock' | 'deletePaddock' | 'addLivestockMob' | 'addLivestockAnimal' |
   'deleteLivestockMob' | 'deleteLivestockAnimal' | 'addTask' | 'updateTaskStatus' |
   'deleteTask' | 'addTransaction' | 'deleteTransaction' | 'addInventoryItem' |
@@ -215,6 +216,20 @@ export const useDataStore = create<DataStore>()((set) => ({
         const id = (p.old as { id: string }).id;
         set((s) => ({ livestockMobs: s.livestockMobs.filter((x) => x.id !== id) }));
       })
+      // Livestock animals
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'livestock_animals' }, (p) => {
+        const row = dbToJs<LivestockAnimal>(p.new as Record<string, unknown>);
+        if (farmIds.includes(row.farmId))
+          set((s) => ({ livestock: [...s.livestock.filter((x) => x.id !== row.id), row] }));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'livestock_animals' }, (p) => {
+        const row = dbToJs<LivestockAnimal>(p.new as Record<string, unknown>);
+        set((s) => ({ livestock: s.livestock.map((x) => x.id === row.id ? row : x) }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'livestock_animals' }, (p) => {
+        const id = (p.old as { id: string }).id;
+        set((s) => ({ livestock: s.livestock.filter((x) => x.id !== id) }));
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(ch); };
@@ -230,6 +245,14 @@ export const useDataStore = create<DataStore>()((set) => ({
     set((s) => ({ farms: [...s.farms, record] }));
     useAppStore.getState().setActiveFarm(record.id);
     return record;
+  },
+
+  updateFarm: async (id, data) => {
+    set((s) => ({ farms: s.farms.map((f) => f.id === id ? { ...f, ...data } : f) }));
+    const { error } = await supabase.from('farms')
+      .update(jsToDb(data as unknown as Record<string, unknown>))
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
   // ── Paddocks ──────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useDataStore } from '../../store/dataStore';
 import type { FarmType, State } from '../../types';
@@ -21,7 +22,9 @@ const STATES: State[] = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 
 export function CreateFarmPage() {
   const { user } = useAuthStore();
-  const { addFarm, loadFromSupabase } = useDataStore();
+  const { addFarm, loadFromSupabase, farms } = useDataStore();
+  const navigate = useNavigate();
+  const isAddingExtra = farms.length > 0;
 
   const [form, setForm] = useState({
     name: '',
@@ -57,6 +60,8 @@ export function CreateFarmPage() {
       });
       // Reload full dataset now that a farm exists
       await loadFromSupabase(user.id);
+      // If adding a second+ farm, navigate back to the dashboard
+      if (isAddingExtra) navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create farm');
     } finally {
@@ -71,8 +76,8 @@ export function CreateFarmPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-farm-500 mb-4 shadow-lg">
             <Wheat className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Set Up Your Property</h1>
-          <p className="text-farm-300 mt-1">You can add more properties later from Settings</p>
+          <h1 className="text-2xl font-bold text-white">{isAddingExtra ? 'Add New Property' : 'Set Up Your Property'}</h1>
+          <p className="text-farm-300 mt-1">{isAddingExtra ? 'Add another farm or property to your account' : 'You can add more properties later from Settings'}</p>
         </div>
 
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8">

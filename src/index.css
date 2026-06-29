@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  html, body { @apply m-0 h-full; }
+  body { @apply bg-farm-50 text-gray-900 font-sans; }
+  html.dark body { @apply bg-gray-950 text-gray-100; }
+  html.dark { color-scheme: dark; }
+  * { @apply box-border; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-2xl shadow-sm border border-farm-100 p-4 dark:bg-gray-900 dark:border-gray-800; }
+  .btn-primary { @apply bg-farm-700 hover:bg-farm-800 text-white font-semibold px-4 py-2.5 rounded-xl transition-colors duration-150 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm; }
+  .btn-secondary { @apply bg-white hover:bg-farm-50 border border-farm-200 text-farm-800 font-semibold px-4 py-2.5 rounded-xl transition-colors duration-150 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-farm-200 dark:hover:bg-gray-700; }
+  .btn-danger { @apply bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl transition-colors duration-150 inline-flex items-center gap-2 text-sm; }
+  .input { @apply w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-farm-500 focus:border-transparent bg-white placeholder-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-500; }
+  .label { @apply block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300; }
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+  .stat-card { @apply card flex flex-col gap-2; }
+  .section-title { @apply text-lg font-bold text-gray-900 dark:text-gray-100; }
+  .table-header { @apply text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 dark:text-gray-400; }
+  .table-cell { @apply px-3 py-3 text-sm text-gray-700 border-b border-gray-50 dark:text-gray-300 dark:border-gray-800; }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-farm-200 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-farm-400; }
+
+@media (max-width: 768px) {
+  button, a, [role="button"] { min-height: 44px; }
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
@@ -8,44 +8,68 @@ import toast from 'react-hot-toast';
 interface AddLivestockModalProps {
   open: boolean;
   onClose: () => void;
+  initialMob?: LivestockMobGroup;
+  initialAnimal?: LivestockAnimal;
 }
 
-export function AddLivestockModal({ open, onClose }: AddLivestockModalProps) {
+export function AddLivestockModal({ open, onClose, initialMob, initialAnimal }: AddLivestockModalProps) {
   const { activeFarmId } = useAppStore();
   const addLivestockMob = useDataStore((s) => s.addLivestockMob);
   const addLivestockAnimal = useDataStore((s) => s.addLivestockAnimal);
-  const [mode, setMode] = useState<'mob' | 'individual'>('mob');
+  const updateLivestockMob = useDataStore((s) => s.updateLivestockMob);
+  const updateLivestockAnimal = useDataStore((s) => s.updateLivestockAnimal);
+  const isEdit = !!(initialMob || initialAnimal);
+  const [mode, setMode] = useState<'mob' | 'individual'>(initialAnimal ? 'individual' : 'mob');
   const [form, setForm] = useState({
     name: '', species: 'sheep', count: '', breed: '',
     tag: '', gender: 'female', dob: '', weightKg: '', notes: '',
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (open) {
+      if (initialMob) {
+        setMode('mob');
+        setForm({ name: initialMob.name, species: initialMob.species, count: initialMob.count.toString(),
+          breed: '', tag: '', gender: 'female', dob: '', weightKg: '', notes: initialMob.notes ?? '' });
+      } else if (initialAnimal) {
+        setMode('individual');
+        setForm({ name: '', species: initialAnimal.species, count: '',
+          breed: initialAnimal.breed, tag: initialAnimal.tag, gender: initialAnimal.gender,
+          dob: initialAnimal.dob ?? '', weightKg: initialAnimal.weightKg?.toString() ?? '',
+          notes: initialAnimal.notes ?? '' });
+      } else {
+        setForm({ name: '', species: 'sheep', count: '', breed: '', tag: '', gender: 'female', dob: '', weightKg: '', notes: '' });
+      }
+    }
+  }, [open]); // eslint-disable-line
+
   const handleSave = () => {
     if (mode === 'mob' && (!form.name || !form.count)) { toast.error('Name and count required'); return; }
     if (mode === 'individual' && !form.tag) { toast.error('NLIS tag is required'); return; }
     if (mode === 'mob') {
-      addLivestockMob(activeFarmId, {
-        name: form.name,
-        species: form.species as LivestockMobGroup['species'],
-        count: parseInt(form.count, 10),
-        paddockId: undefined,
-        notes: form.notes || undefined,
-      });
-      toast.success(`Mob "${form.name}" (${form.count} head) added!`);
+      const mobData = { name: form.name, species: form.species as LivestockMobGroup['species'],
+        count: parseInt(form.count, 10), paddockId: initialMob?.paddockId, notes: form.notes || undefined };
+      if (isEdit && initialMob) {
+        updateLivestockMob(initialMob.id, mobData);
+        toast.success(`Mob "${form.name}" updated!`);
+      } else {
+        addLivestockMob(activeFarmId, { ...mobData, paddockId: undefined });
+        toast.success(`Mob "${form.name}" (${form.count} head) added!`);
+      }
     } else {
-      addLivestockAnimal(activeFarmId, {
-        tag: form.tag,
-        species: form.species as LivestockAnimal['species'],
-        breed: form.breed || 'Unknown',
-        gender: form.gender as LivestockAnimal['gender'],
-        dob: form.dob || undefined,
-        weightKg: form.weightKg ? parseFloat(form.weightKg) : undefined,
-        status: 'healthy',
-        paddockId: undefined,
-        notes: form.notes || undefined,
-      });
-      toast.success(`Animal tag ${form.tag} added!`);
+      const animalData = { tag: form.tag, species: form.species as LivestockAnimal['species'],
+        breed: form.breed || 'Unknown', gender: form.gender as LivestockAnimal['gender'],
+        dob: form.dob || undefined, weightKg: form.weightKg ? parseFloat(form.weightKg) : undefined,
+        status: initialAnimal?.status ?? 'healthy' as LivestockAnimal['status'],
+        paddockId: initialAnimal?.paddockId, notes: form.notes || undefined };
+      if (isEdit && initialAnimal) {
+        updateLivestockAnimal(initialAnimal.id, animalData);
+        toast.success(`Animal ${form.tag} updated!`);
+      } else {
+        addLivestockAnimal(activeFarmId, { ...animalData, paddockId: undefined });
+        toast.success(`Animal tag ${form.tag} added!`);
+      }
     }
     onClose();
     setForm({ name: '', species: 'sheep', count: '', breed: '', tag: '', gender: 'female', dob: '', weightKg: '', notes: '' });
@@ -64,18 +88,18 @@ export function AddLivestockModal({ open, onClose }: AddLivestockModalProps) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Add Livestock"
+      title={isEdit ? (mode === 'mob' ? 'Edit Mob' : 'Edit Animal') : 'Add Livestock'}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Save</button>
+          <button className="btn-primary" onClick={handleSave}>{isEdit ? 'Save Changes' : 'Save'}</button>
         </>
       }
     >
       <div className="space-y-4">
         <div className="flex gap-2">
           {(['mob', 'individual'] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)}
+            <button key={m} onClick={() => !isEdit && setMode(m)}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${mode === m ? 'bg-farm-700 text-white border-farm-700' : 'bg-white text-gray-600 border-gray-200'}`}>
               {m === 'mob' ? 'Mob / Group' : 'Individual Animal'}
             </button>

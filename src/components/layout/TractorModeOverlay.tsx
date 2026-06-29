@@ -15,11 +15,11 @@ const quickLinks = [
 
 export function TractorModeOverlay() {
   const { tractorMode, set } = useTractorStore();
-  const { tasks, weatherReadings, livestockMobs, paddocks } = useFarmData();
+  const { farm, tasks, weatherReadings, livestockMobs, paddocks } = useFarmData();
   if (!tractorMode) return null;
 
-  const today = weatherReadings[weatherReadings.length - 1];
-  const overdueTasks = tasks.filter(t => t.status === 'overdue');
+  const today = weatherReadings.length > 0 ? weatherReadings[weatherReadings.length - 1] : null;
+  const overdueTasks = tasks.filter(t => t.status === 'overdue' || (t.status !== 'done' && t.dueDate && new Date(t.dueDate) < new Date()));
   const pendingTasks = tasks.filter(t => t.status === 'todo' || t.status === 'in_progress').slice(0, 4);
   const totalHead = livestockMobs.reduce((s, m) => s + m.count, 0);
   const activePaddocks = paddocks.filter(p => p.status === 'active').length;
@@ -32,7 +32,7 @@ export function TractorModeOverlay() {
           <div className="w-10 h-10 bg-farm-500 rounded-xl flex items-center justify-center text-xl">🚜</div>
           <div>
             <p className="text-xl font-extrabold leading-none">Tractor Mode</p>
-            <p className="text-farm-300 text-sm">Riverdale Station</p>
+            <p className="text-farm-300 text-sm">{farm?.name ?? 'My Farm'}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -42,11 +42,13 @@ export function TractorModeOverlay() {
             <p className="text-farm-300 text-sm">{new Date().toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
           </div>
           {/* Weather */}
+          {today && (
           <div className="bg-farm-800 rounded-2xl px-4 py-2 flex items-center gap-2 hidden sm:flex">
             <Cloud className="w-5 h-5 text-sky-300" />
             <span className="text-lg font-bold">{today.tempMaxC}°C</span>
             <span className="text-farm-300 text-sm">{today.rainfallMm > 0 ? `${today.rainfallMm}mm` : 'No rain'}</span>
           </div>
+          )}
           <button
             onClick={() => set(false)}
             className="bg-red-600 hover:bg-red-700 rounded-2xl p-3 transition-colors"
@@ -76,8 +78,8 @@ export function TractorModeOverlay() {
           {[
             { label: 'Total Livestock', value: totalHead.toLocaleString(), sub: 'head' },
             { label: 'Active Paddocks', value: activePaddocks, sub: 'of ' + paddocks.length },
-            { label: 'Today Max', value: `${today.tempMaxC}°C`, sub: `Min ${today.tempMinC}°C` },
-            { label: 'Today Rain', value: `${today.rainfallMm}mm`, sub: `Wind ${today.windKph} km/h` },
+            { label: 'Today Max', value: today ? `${today.tempMaxC}°C` : '—', sub: today ? `Min ${today.tempMinC}°C` : '' },
+            { label: 'Today Rain', value: today ? `${today.rainfallMm}mm` : '—', sub: today ? `Wind ${today.windKph} km/h` : '' },
           ].map(s => (
             <div key={s.label} className="bg-farm-800 rounded-3xl px-5 py-4">
               <p className="text-farm-300 text-sm font-medium">{s.label}</p>

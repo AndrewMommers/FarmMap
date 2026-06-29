@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -10,26 +11,35 @@ import { useFarmData } from '../hooks/useFarmData';
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
 
 export function DashboardPage() {
-  const { paddocks, livestockMobs, tasks, transactions, weatherReadings, rainfallSummary } = useFarmData();
+  const { paddocks, livestockMobs, tasks, transactions, weatherReadings, rainfallSummary, weatherLoading } = useFarmData();
   const totalLivestock = livestockMobs.reduce((sum, m) => sum + m.count, 0);
   const activePaddocks = paddocks.filter((p) => p.status === 'active').length;
   const pendingTasks = tasks.filter((t) => t.status !== 'done').length;
-  const overdueTasks = tasks.filter((t) => t.status === 'overdue').length;
+  const overdueTasks = tasks.filter((t) => t.status === 'overdue' || (t.status !== 'done' && t.dueDate && new Date(t.dueDate) < new Date())).length;
   const totalHectares = paddocks.reduce((s, p) => s + p.hectares, 0);
   const ytdIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amountAUD, 0);
   const ytdExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amountAUD, 0);
   const recentTasks = tasks.filter((t) => t.status !== 'done').slice(0, 5);
   const recentTx = transactions.slice(0, 5);
-  const todayWeather = weatherReadings[weatherReadings.length - 1];
+  const todayWeather = weatherReadings.length > 0 ? weatherReadings[weatherReadings.length - 1] : null;
 
-  // Monthly P&L (mock)
-  const monthlyPnl = [
-    { month: 'Feb', income: 34000, expense: 18000 },
-    { month: 'Mar', income: 48000, expense: 22000 },
-    { month: 'Apr', income: 285000, expense: 31000 },
-    { month: 'May', income: 22000, expense: 108000 },
-    { month: 'Jun', income: 148000, expense: 38000 },
-  ];
+  // Monthly P&L computed from live transactions (last 6 months)
+  const monthlyPnl = useMemo(() => {
+    const map: Record<string, { income: number; expense: number }> = {};
+    for (const t of transactions) {
+      const ym = t.date.slice(0, 7);
+      if (!map[ym]) map[ym] = { income: 0, expense: 0 };
+      if (t.type === 'income') map[ym].income += t.amountAUD;
+      else map[ym].expense += t.amountAUD;
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([ym, v]) => ({
+        month: new Date(ym + '-15').toLocaleString('en-AU', { month: 'short', year: '2-digit' }),
+        ...v,
+      }));
+  }, [transactions]);
 
   return (
     <div className="space-y-6">
@@ -97,7 +107,7 @@ export function DashboardPage() {
 
         {/* Rainfall chart */}
         <div className="card">
-          <h2 className="section-title mb-4">Rainfall (mm) – Last 12 Months</h2>
+          <h2 className="section-title mb-4">Rainfall – Last 3 Months</h2>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={rainfallSummary} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <defs>
@@ -123,7 +133,16 @@ export function DashboardPage() {
         {/* Today's weather */}
         <div className="card">
           <h2 className="section-title mb-4">Today's Conditions</h2>
-          {todayWeather && (
+          {weatherLoading ? (
+            <div className="space-y-3 animate-pulse">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex justify-between items-center">
+                  <div className="h-3 w-24 bg-gray-100 dark:bg-gray-800 rounded" />
+                  <div className="h-3 w-16 bg-gray-100 dark:bg-gray-800 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : todayWeather ? (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Max / Min</span>
@@ -134,18 +153,16 @@ export function DashboardPage() {
                 <span className="text-sm font-semibold text-blue-700">{todayWeather.rainfallMm} mm</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Humidity</span>
-                <span className="text-sm font-semibold">{todayWeather.humidityPct}%</span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Wind</span>
-                <span className="text-sm font-semibold">{todayWeather.windKph} km/h</span>
+                <span className="text-sm font-semibold">{todayWeather.windKph ?? '—'} km/h</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Evaporation</span>
-                <span className="text-sm font-semibold">{todayWeather.evapMm} mm</span>
+                <span className="text-sm font-semibold">{todayWeather.evapMm != null ? `${todayWeather.evapMm} mm` : '—'}</span>
               </div>
             </div>
+          ) : (
+            <p className="text-sm text-gray-400 py-4 text-center">No weather data available</p>
           )}
           <Link to="/weather" className="mt-4 block text-xs text-farm-600 hover:underline font-medium">Full weather report →</Link>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 interface AddTransactionModalProps {
   open: boolean;
   onClose: () => void;
+  initialData?: Transaction;
 }
 
 const INCOME_CATEGORIES = [
@@ -36,9 +37,11 @@ const EXPENSE_CATEGORIES = [
   { value: 'other_expense', label: 'Other Expense' },
 ];
 
-export function AddTransactionModal({ open, onClose }: AddTransactionModalProps) {
+export function AddTransactionModal({ open, onClose, initialData }: AddTransactionModalProps) {
   const { activeFarmId } = useAppStore();
   const addTransaction = useDataStore((s) => s.addTransaction);
+  const updateTransaction = useDataStore((s) => s.updateTransaction);
+  const isEdit = !!initialData;
   const [form, setForm] = useState({
     type: 'expense' as 'income' | 'expense',
     date: new Date().toISOString().slice(0, 10),
@@ -52,13 +55,33 @@ export function AddTransactionModal({ open, onClose }: AddTransactionModalProps)
   });
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (open) {
+      setForm(initialData ? {
+        type: initialData.type,
+        date: initialData.date,
+        category: initialData.category,
+        description: initialData.description,
+        amount: initialData.amountAUD.toString(),
+        gstIncluded: initialData.gstIncluded,
+        supplier: initialData.supplier ?? '',
+        invoiceNumber: initialData.invoiceNumber ?? '',
+        notes: initialData.notes ?? '',
+      } : {
+        type: 'expense', date: new Date().toISOString().slice(0, 10),
+        category: 'fuel', description: '', amount: '',
+        gstIncluded: true, supplier: '', invoiceNumber: '', notes: '',
+      });
+    }
+  }, [open]); // eslint-disable-line
+
   const categories = form.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   const handleSave = () => {
     if (!form.description || !form.amount) { toast.error('Description and amount are required'); return; }
     const amt = parseFloat(form.amount);
     if (isNaN(amt) || amt <= 0) { toast.error('Enter a valid amount'); return; }
-    addTransaction(activeFarmId, {
+    const payload = {
       type: form.type as Transaction['type'],
       date: form.date,
       category: form.category as Transaction['category'],
@@ -68,8 +91,14 @@ export function AddTransactionModal({ open, onClose }: AddTransactionModalProps)
       supplier: form.supplier || undefined,
       invoiceNumber: form.invoiceNumber || undefined,
       notes: form.notes || undefined,
-    });
-    toast.success(`Transaction recorded: ${form.type === 'income' ? '+' : '-'}$${amt.toLocaleString('en-AU')}`);
+    };
+    if (isEdit && initialData) {
+      updateTransaction(initialData.id, payload);
+      toast.success('Transaction updated!');
+    } else {
+      addTransaction(activeFarmId, payload);
+      toast.success(`Transaction recorded: ${form.type === 'income' ? '+' : '-'}$${amt.toLocaleString('en-AU')}`);
+    }
     onClose();
   };
 
@@ -77,11 +106,11 @@ export function AddTransactionModal({ open, onClose }: AddTransactionModalProps)
     <Modal
       open={open}
       onClose={onClose}
-      title="New Transaction"
+      title={isEdit ? 'Edit Transaction' : 'New Transaction'}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Record Transaction</button>
+          <button className="btn-primary" onClick={handleSave}>{isEdit ? 'Save Changes' : 'Record Transaction'}</button>
         </>
       }
     >

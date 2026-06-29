@@ -1,7 +1,7 @@
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task,
-  WeatherReading, RainfallSummary, User,
+  WeatherReading, RainfallSummary, User, FenceLine, MapFeature,
 } from '../types';
 
 // ─── Farm ─────────────────────────────────────────────────────────────────────
@@ -257,4 +257,36 @@ export const users: User[] = [
   { id: 'u-6', farmId: 'farm-2', name: 'Sarah Thornton', email: 'sarah@redgumgrazing.com.au', role: 'owner', phone: '0417 555 001', active: true, lastLogin: '2025-06-29' },
   { id: 'u-7', farmId: 'farm-2', name: 'Ben Thornton', email: 'ben@redgumgrazing.com.au', role: 'manager', phone: '0417 555 002', active: true, lastLogin: '2025-06-28' },
   { id: 'u-8', farmId: 'farm-2', name: 'Grace Olsson', email: 'grace@wimmera-accounts.com.au', role: 'accountant', phone: '03 5382 1234', active: true, lastLogin: '2025-06-20' },
+];
+
+// ─── Fence Lines ──────────────────────────────────────────────────────────────
+
+export const fenceLines: FenceLine[] = [
+  {
+    id: 'fl-1', farmId: 'farm-1', name: 'North Boundary',
+    color: '#78350f',
+    points: [[-33.475, 145.495], [-33.475, 145.520], [-33.478, 145.540]],
+  },
+  {
+    id: 'fl-2', farmId: 'farm-1', name: 'Creek Boundary',
+    color: '#1e3a5f',
+    points: [[-33.490, 145.510], [-33.497, 145.515], [-33.503, 145.512]],
+  },
+  {
+    id: 'fl-3', farmId: 'farm-2', name: 'Eastern Fence',
+    color: '#78350f',
+    points: [[-36.705, 142.010], [-36.715, 142.025], [-36.725, 142.020]],
+  },
+];
+
+// ─── Map Features ─────────────────────────────────────────────────────────────
+
+export const mapFeatures: MapFeature[] = [
+  { id: 'mf-1', farmId: 'farm-1', type: 'shed',         name: 'Main Shed',     coordinates: [-33.489, 145.503] },
+  { id: 'mf-2', farmId: 'farm-1', type: 'water_trough', name: 'North Trough',  coordinates: [-33.493, 145.513] },
+  { id: 'mf-3', farmId: 'farm-1', type: 'water_trough', name: 'Bore Trough',   coordinates: [-33.507, 145.548] },
+  { id: 'mf-4', farmId: 'farm-1', type: 'dam',          name: 'Main Dam',      coordinates: [-33.501, 145.540] },
+  { id: 'mf-5', farmId: 'farm-1', type: 'gate',         name: 'Front Gate',    coordinates: [-33.485, 145.498] },
+  { id: 'mf-6', farmId: 'farm-2', type: 'shed',         name: 'Machinery Shed',coordinates: [-36.712, 142.012] },
+  { id: 'mf-7', farmId: 'farm-2', type: 'dam',          name: 'Stock Dam',     coordinates: [-36.720, 142.030] },
 ];

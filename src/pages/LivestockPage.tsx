@@ -5,16 +5,22 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { AddLivestockModal } from '../components/modals/AddLivestockModal';
 import { useFarmData } from '../hooks/useFarmData';
+import { useDataStore } from '../store/dataStore';
 import { formatDate } from '../lib/utils';
 import toast from 'react-hot-toast';
-import { Plus, Tag, AlertTriangle } from 'lucide-react';
+import { Plus, Tag, AlertTriangle, Trash2, Pencil } from 'lucide-react';
+import type { LivestockMobGroup, LivestockAnimal } from '../types';
 
 export function LivestockPage() {
   const { livestockMobs, livestock, paddocks } = useFarmData();
+  const deleteLivestockMob = useDataStore((s) => s.deleteLivestockMob);
+  const deleteLivestockAnimal = useDataStore((s) => s.deleteLivestockAnimal);
   const [tab, setTab] = useState<'mobs' | 'individual'>('mobs');
   const [search, setSearch] = useState('');
   const [filterSpecies, setFilterSpecies] = useState('all');
   const [showAddLivestock, setShowAddLivestock] = useState(false);
+  const [editingMob, setEditingMob] = useState<LivestockMobGroup | undefined>();
+  const [editingAnimal, setEditingAnimal] = useState<LivestockAnimal | undefined>();
 
   const totalCount = livestockMobs.reduce((s, m) => s + m.count, 0);
   const sickCount = livestock.filter((l) => l.status === 'sick' || l.status === 'quarantine').length;
@@ -34,9 +40,26 @@ export function LivestockPage() {
 
   const getPaddockName = (id?: string) => paddocks.find((p) => p.id === id)?.name ?? '—';
 
+  const handleDeleteMob = (id: string, name: string) => {
+    if (!window.confirm(`Delete mob "${name}"? This cannot be undone.`)) return;
+    deleteLivestockMob(id);
+    toast.success('Mob deleted');
+  };
+
+  const handleDeleteAnimal = (id: string, tag: string) => {
+    if (!window.confirm(`Delete animal ${tag}? This cannot be undone.`)) return;
+    deleteLivestockAnimal(id);
+    toast.success('Animal deleted');
+  };
+
   return (
     <div className="space-y-6">
-      <AddLivestockModal open={showAddLivestock} onClose={() => setShowAddLivestock(false)} />
+      <AddLivestockModal
+        open={showAddLivestock || !!editingMob || !!editingAnimal}
+        onClose={() => { setShowAddLivestock(false); setEditingMob(undefined); setEditingAnimal(undefined); }}
+        initialMob={editingMob}
+        initialAnimal={editingAnimal}
+      />
       <PageHeader
         title="Livestock"
         subtitle="NLIS-compliant herd & mob management"
@@ -100,6 +123,8 @@ export function LivestockPage() {
               <div className="mt-4 flex gap-2">
                 <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Movement record – coming soon')}>Record Movement</button>
                 <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Treatment record – coming soon')}>Add Treatment</button>
+                <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit mob" onClick={() => setEditingMob(mob)}><Pencil className="w-4 h-4" /></button>
+                <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete mob" onClick={() => handleDeleteMob(mob.id, mob.name)}><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           ))}
@@ -109,7 +134,7 @@ export function LivestockPage() {
           <table className="w-full min-w-[700px]">
             <thead>
               <tr>
-                {['NLIS Tag', 'Species', 'Breed', 'Gender', 'DOB', 'Weight', 'Status', 'Paddock', 'Notes'].map((h) => (
+                {['NLIS Tag', 'Species', 'Breed', 'Gender', 'DOB', 'Weight', 'Status', 'Paddock', 'Notes', ''].map((h) => (
                   <th key={h} className="table-header">{h}</th>
                 ))}
               </tr>
@@ -126,6 +151,12 @@ export function LivestockPage() {
                   <td className="table-cell"><StatusBadge status={a.status} /></td>
                   <td className="table-cell">{getPaddockName(a.paddockId)}</td>
                   <td className="table-cell text-xs text-gray-400 max-w-[160px] truncate">{a.notes ?? '—'}</td>
+                  <td className="table-cell">
+                    <div className="flex gap-1">
+                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit animal" onClick={() => setEditingAnimal(a)}><Pencil className="w-3.5 h-3.5" /></button>
+                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete animal" onClick={() => handleDeleteAnimal(a.id, a.tag)}><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

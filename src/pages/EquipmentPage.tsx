@@ -5,15 +5,19 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
 import { useFarmData } from '../hooks/useFarmData';
+import { useDataStore } from '../store/dataStore';
 import { formatDate, formatCurrency } from '../lib/utils';
 import toast from 'react-hot-toast';
-import { Plus, Wrench, AlertTriangle } from 'lucide-react';
+import { Plus, Wrench, AlertTriangle, Trash2, Pencil } from 'lucide-react';
+import type { Equipment } from '../types';
 
 export function EquipmentPage() {
   const { equipment, maintenanceLogs } = useFarmData();
+  const deleteEquipment = useDataStore((s) => s.deleteEquipment);
   const [tab, setTab] = useState<'fleet' | 'maintenance'>('fleet');
   const [search, setSearch] = useState('');
   const [showAddEquipment, setShowAddEquipment] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | undefined>();
 
   const operational = equipment.filter(e => e.status === 'operational').length;
   const inMaintenance = equipment.filter(e => e.status === 'maintenance' || e.status === 'repair').length;
@@ -29,9 +33,15 @@ export function EquipmentPage() {
     irrigation: '💦', planter: '🌱', pump: '⚙️', shed: '🏚️', other: '🔧',
   };
 
+  const handleDelete = (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    deleteEquipment(id);
+    toast.success('Equipment deleted');
+  };
+
   return (
     <div className="space-y-6">
-      <AddEquipmentModal open={showAddEquipment} onClose={() => setShowAddEquipment(false)} />
+      <AddEquipmentModal open={showAddEquipment || !!editingEquipment} onClose={() => { setShowAddEquipment(false); setEditingEquipment(undefined); }} initialData={editingEquipment} />
       <PageHeader
         title="Equipment & Fleet"
         subtitle="Machinery, vehicles, and maintenance records"
@@ -81,7 +91,8 @@ export function EquipmentPage() {
               {e.notes && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1">{e.notes}</p>}
               <div className="mt-4 flex gap-2">
                 <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Service record – coming soon')}>Log Service</button>
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Edit equipment – coming soon')}>Edit</button>
+                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setEditingEquipment(e)}><Pencil className="w-3 h-3 mr-1 inline" />Edit</button>
+                <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete equipment" onClick={() => handleDelete(e.id, e.name)}><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           ))}

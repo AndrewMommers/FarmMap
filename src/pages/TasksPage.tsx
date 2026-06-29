@@ -8,16 +8,18 @@ import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate } from '../lib/utils';
 import toast from 'react-hot-toast';
-import { Plus, CheckCircle2, Clock, AlertTriangle, ListChecks } from 'lucide-react';
-import type { TaskPriority } from '../types';
+import { Plus, CheckCircle2, Clock, AlertTriangle, ListChecks, Trash2 } from 'lucide-react';
+import type { Task, TaskPriority } from '../types';
 
 const PRIORITY_ORDER: TaskPriority[] = ['critical', 'high', 'medium', 'low'];
 
 export function TasksPage() {
   const { tasks, paddocks, equipment } = useFarmData();
   const updateTaskStatus = useDataStore((s) => s.updateTaskStatus);
+  const deleteTask = useDataStore((s) => s.deleteTask);
   const [search, setSearch] = useState('');
   const [showAddTask, setShowAddTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
@@ -48,6 +50,12 @@ export function TasksPage() {
     toast.success('Task marked complete!');
   };
 
+  const handleDelete = (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    deleteTask(id);
+    toast.success('Task deleted');
+  };
+
   const StatusIcon = ({ status }: { status: string }) => {
     if (status === 'done') return <CheckCircle2 className="w-4 h-4 text-farm-500" />;
     if (status === 'overdue') return <AlertTriangle className="w-4 h-4 text-red-500" />;
@@ -57,7 +65,7 @@ export function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <AddTaskModal open={showAddTask} onClose={() => setShowAddTask(false)} />
+      <AddTaskModal open={showAddTask || !!editingTask} onClose={() => { setShowAddTask(false); setEditingTask(undefined); }} initialData={editingTask} />
       <PageHeader
         title="Tasks & Work Orders"
         subtitle="Farm task management and work scheduling"
@@ -115,7 +123,8 @@ export function TasksPage() {
               {task.status !== 'done' && (
                 <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => markDone(task.id)}>Done</button>
               )}
-              <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => toast('Edit task – coming soon')}>Edit</button>
+              <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => setEditingTask(task)}>Edit</button>
+              <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete task" onClick={() => handleDelete(task.id, task.title)}><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>
         ))}

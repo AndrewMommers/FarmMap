@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task, User,
-  TaskStatus,
+  TaskStatus, FenceLine, MapFeature, MapFeatureType,
 } from '../types';
+import * as mock from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import { jsToDb, mapRows, dbToJs } from '../lib/db';
 import { useAppStore } from './appStore';
@@ -19,6 +20,8 @@ interface DataStore {
   // ── State ────────────────────────────────────────────────────────────────
   farms: Farm[];
   paddocks: Paddock[];
+  fenceLines: FenceLine[];
+  mapFeatures: MapFeature[];
   livestockMobs: LivestockMobGroup[];
   livestock: LivestockAnimal[];
   crops: CropRecord[];
@@ -35,6 +38,7 @@ interface DataStore {
 
   // ── Bootstrap ────────────────────────────────────────────────────────────
   loadFromSupabase: (userId: string) => Promise<void>;
+  loadDemoData: () => void;
   clearData: () => void;
   subscribeToRealtime: (farmIds: string[]) => () => void;
 
@@ -44,41 +48,60 @@ interface DataStore {
 
   // ── Paddocks ─────────────────────────────────────────────────────────────
   addPaddock: (farmId: string, data: Omit<Paddock, 'id' | 'farmId'>) => Paddock;
+  updatePaddock: (id: string, data: Partial<Omit<Paddock, 'id' | 'farmId'>>) => void;
   deletePaddock: (id: string) => void;
+
+  // ── Fence Lines ───────────────────────────────────────────────────────────
+  addFenceLine: (farmId: string, data: Omit<FenceLine, 'id' | 'farmId'>) => FenceLine;
+  deleteFenceLine: (id: string) => void;
+
+  // ── Map Features ─────────────────────────────────────────────────────────
+  addMapFeature: (farmId: string, data: Omit<MapFeature, 'id' | 'farmId'>) => MapFeature;
+  deleteMapFeature: (id: string) => void;
 
   // ── Livestock ─────────────────────────────────────────────────────────────
   addLivestockMob: (farmId: string, data: Omit<LivestockMobGroup, 'id' | 'farmId'>) => LivestockMobGroup;
   addLivestockAnimal: (farmId: string, data: Omit<LivestockAnimal, 'id' | 'farmId'>) => LivestockAnimal;
+  updateLivestockMob: (id: string, data: Partial<Omit<LivestockMobGroup, 'id' | 'farmId'>>) => void;
+  updateLivestockAnimal: (id: string, data: Partial<Omit<LivestockAnimal, 'id' | 'farmId'>>) => void;
   deleteLivestockMob: (id: string) => void;
   deleteLivestockAnimal: (id: string) => void;
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
   addTask: (farmId: string, data: Omit<Task, 'id' | 'farmId'>) => Task;
   updateTaskStatus: (id: string, status: TaskStatus) => void;
+  updateTask: (id: string, data: Partial<Omit<Task, 'id' | 'farmId'>>) => void;
   deleteTask: (id: string) => void;
 
   // ── Transactions ──────────────────────────────────────────────────────────
   addTransaction: (farmId: string, data: Omit<Transaction, 'id' | 'farmId'>) => Transaction;
+  updateTransaction: (id: string, data: Partial<Omit<Transaction, 'id' | 'farmId'>>) => void;
   deleteTransaction: (id: string) => void;
 
   // ── Inventory ─────────────────────────────────────────────────────────────
   addInventoryItem: (farmId: string, data: Omit<InventoryItem, 'id' | 'farmId'>) => InventoryItem;
   updateInventoryQty: (id: string, quantity: number) => void;
+  updateInventoryItem: (id: string, data: Partial<Omit<InventoryItem, 'id' | 'farmId'>>) => void;
   deleteInventoryItem: (id: string) => void;
 
   // ── Equipment ─────────────────────────────────────────────────────────────
   addEquipment: (farmId: string, data: Omit<Equipment, 'id' | 'farmId'>) => Equipment;
+  updateEquipment: (id: string, data: Partial<Omit<Equipment, 'id' | 'farmId'>>) => void;
   deleteEquipment: (id: string) => void;
 }
 
 const EMPTY: Omit<DataStore,
-  'loadFromSupabase' | 'clearData' | 'subscribeToRealtime' | 'addFarm' | 'updateFarm' |
-  'addPaddock' | 'deletePaddock' | 'addLivestockMob' | 'addLivestockAnimal' |
-  'deleteLivestockMob' | 'deleteLivestockAnimal' | 'addTask' | 'updateTaskStatus' |
-  'deleteTask' | 'addTransaction' | 'deleteTransaction' | 'addInventoryItem' |
-  'updateInventoryQty' | 'deleteInventoryItem' | 'addEquipment' | 'deleteEquipment'
+  'loadFromSupabase' | 'loadDemoData' | 'clearData' | 'subscribeToRealtime' | 'addFarm' | 'updateFarm' |
+  'addPaddock' | 'updatePaddock' | 'deletePaddock' | 'addFenceLine' | 'deleteFenceLine' |
+  'addMapFeature' | 'deleteMapFeature' |
+  'addLivestockMob' | 'addLivestockAnimal' |
+  'updateLivestockMob' | 'updateLivestockAnimal' | 'deleteLivestockMob' | 'deleteLivestockAnimal' |
+  'addTask' | 'updateTaskStatus' | 'updateTask' | 'deleteTask' |
+  'addTransaction' | 'updateTransaction' | 'deleteTransaction' | 'addInventoryItem' |
+  'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
+  'addEquipment' | 'updateEquipment' | 'deleteEquipment'
 > = {
-  farms: [], paddocks: [], livestockMobs: [], livestock: [], crops: [],
+  farms: [], paddocks: [], fenceLines: [], mapFeatures: [], livestockMobs: [], livestock: [], crops: [],
   sprayRecords: [], equipment: [], maintenanceLogs: [], transactions: [],
   budgets: [], inventory: [], tasks: [], users: [], dataLoading: false,
 };
@@ -131,6 +154,8 @@ export const useDataStore = create<DataStore>()((set) => ({
       set({
         farms,
         paddocks:        mapRows<Paddock>(paddocksRes.data),
+        fenceLines:      [],
+        mapFeatures:     [],
         livestockMobs:   mapRows<LivestockMobGroup>(mobsRes.data),
         livestock:       mapRows<LivestockAnimal>(livestockRes.data),
         crops:           mapRows<CropRecord>(cropsRes.data),
@@ -151,6 +176,28 @@ export const useDataStore = create<DataStore>()((set) => ({
   },
 
   clearData: () => set(EMPTY),
+
+  loadDemoData: () => {
+    useAppStore.getState().setActiveFarm(mock.farms[0].id);
+    set({
+      farms:           mock.farms,
+      paddocks:        mock.paddocks,
+      fenceLines:      mock.fenceLines,
+      mapFeatures:     mock.mapFeatures,
+      livestockMobs:   mock.livestockMobs,
+      livestock:       mock.livestock,
+      crops:           mock.crops,
+      sprayRecords:    mock.sprayRecords,
+      equipment:       mock.equipment,
+      maintenanceLogs: mock.maintenanceLogs,
+      transactions:    mock.transactions,
+      budgets:         mock.budgets,
+      inventory:       mock.inventory,
+      tasks:           mock.tasks,
+      users:           mock.users,
+      dataLoading:     false,
+    });
+  },
 
   subscribeToRealtime: (farmIds: string[]) => {
     const ch = supabase.channel('farmmap-realtime')
@@ -257,6 +304,24 @@ export const useDataStore = create<DataStore>()((set) => ({
 
   // ── Paddocks ──────────────────────────────────────────────────────────────
 
+  addFenceLine: (farmId, data) => {
+    const record: FenceLine = { ...data, id: uid(), farmId };
+    set((s) => ({ fenceLines: [...s.fenceLines, record] }));
+    return record;
+  },
+  deleteFenceLine: (id) => {
+    set((s) => ({ fenceLines: s.fenceLines.filter((f) => f.id !== id) }));
+  },
+
+  addMapFeature: (farmId, data) => {
+    const record: MapFeature = { ...data, id: uid(), farmId, type: data.type as MapFeatureType };
+    set((s) => ({ mapFeatures: [...s.mapFeatures, record] }));
+    return record;
+  },
+  deleteMapFeature: (id) => {
+    set((s) => ({ mapFeatures: s.mapFeatures.filter((f) => f.id !== id) }));
+  },
+
   addPaddock: (farmId, data) => {
     const record: Paddock = { ...data, id: uid(), farmId };
     set((s) => ({ paddocks: [...s.paddocks, record] }));
@@ -268,6 +333,11 @@ export const useDataStore = create<DataStore>()((set) => ({
     set((s) => ({ paddocks: s.paddocks.filter((p) => p.id !== id) }));
     supabase.from('paddocks').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deletePaddock:', error.message); });
+  },
+  updatePaddock: (id, data) => {
+    set((s) => ({ paddocks: s.paddocks.map((p) => p.id === id ? { ...p, ...data } : p) }));
+    supabase.from('paddocks').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updatePaddock:', error.message); });
   },
 
   // ── Livestock ─────────────────────────────────────────────────────────────
@@ -296,6 +366,16 @@ export const useDataStore = create<DataStore>()((set) => ({
     supabase.from('livestock_animals').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deleteLivestockAnimal:', error.message); });
   },
+  updateLivestockMob: (id, data) => {
+    set((s) => ({ livestockMobs: s.livestockMobs.map((m) => m.id === id ? { ...m, ...data } : m) }));
+    supabase.from('livestock_mobs').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateLivestockMob:', error.message); });
+  },
+  updateLivestockAnimal: (id, data) => {
+    set((s) => ({ livestock: s.livestock.map((l) => l.id === id ? { ...l, ...data } : l) }));
+    supabase.from('livestock_animals').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateLivestockAnimal:', error.message); });
+  },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
 
@@ -323,6 +403,11 @@ export const useDataStore = create<DataStore>()((set) => ({
     supabase.from('tasks').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deleteTask:', error.message); });
   },
+  updateTask: (id, data) => {
+    set((s) => ({ tasks: s.tasks.map((t) => t.id === id ? { ...t, ...data } : t) }));
+    supabase.from('tasks').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateTask:', error.message); });
+  },
 
   // ── Transactions ──────────────────────────────────────────────────────────
 
@@ -337,6 +422,11 @@ export const useDataStore = create<DataStore>()((set) => ({
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
     supabase.from('transactions').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deleteTransaction:', error.message); });
+  },
+  updateTransaction: (id, data) => {
+    set((s) => ({ transactions: s.transactions.map((t) => t.id === id ? { ...t, ...data } : t) }));
+    supabase.from('transactions').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateTransaction:', error.message); });
   },
 
   // ── Inventory ─────────────────────────────────────────────────────────────
@@ -358,6 +448,11 @@ export const useDataStore = create<DataStore>()((set) => ({
     supabase.from('inventory').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deleteInventoryItem:', error.message); });
   },
+  updateInventoryItem: (id, data) => {
+    set((s) => ({ inventory: s.inventory.map((i) => i.id === id ? { ...i, ...data } : i) }));
+    supabase.from('inventory').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateInventoryItem:', error.message); });
+  },
 
   // ── Equipment ─────────────────────────────────────────────────────────────
 
@@ -372,5 +467,10 @@ export const useDataStore = create<DataStore>()((set) => ({
     set((s) => ({ equipment: s.equipment.filter((e) => e.id !== id) }));
     supabase.from('equipment').delete().eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] deleteEquipment:', error.message); });
+  },
+  updateEquipment: (id, data) => {
+    set((s) => ({ equipment: s.equipment.map((e) => e.id === id ? { ...e, ...data } : e) }));
+    supabase.from('equipment').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateEquipment:', error.message); });
   },
 }));

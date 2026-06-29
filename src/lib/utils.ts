@@ -5,6 +5,41 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// ─── Nominatim geocoding (shared, cached) ─────────────────────────────────────
+
+const _geocodeCache = new Map<string, [number, number]>();
+
+/** Clears the geocode cache — call on sign-out to prevent stale location data. */
+export function clearGeocodeCache() {
+  _geocodeCache.clear();
+}
+
+/**
+ * Geocodes an Australian address via Nominatim.
+ * Results are cached in memory for the lifetime of the page.
+ */
+export async function geocodeAddress(address: string): Promise<[number, number] | null> {
+  const key = address.toLowerCase().trim();
+  if (_geocodeCache.has(key)) return _geocodeCache.get(key)!;
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}` +
+      `&format=json&limit=1&countrycodes=au`;
+    const res = await fetch(url, {
+      headers: { 'Accept-Language': 'en', 'User-Agent': 'FarmMap/1.0' },
+    });
+    const data: { lat: string; lon: string }[] = await res.json();
+    if (data?.[0]) {
+      const coords: [number, number] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      _geocodeCache.set(key, coords);
+      return coords;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',

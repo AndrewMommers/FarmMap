@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
@@ -9,47 +9,78 @@ import toast from 'react-hot-toast';
 interface AddTaskModalProps {
   open: boolean;
   onClose: () => void;
+  initialData?: Task;
 }
 
 const CATEGORIES = ['crops', 'livestock', 'machinery', 'irrigation', 'finance', 'inventory', 'general'];
 
-export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
+export function AddTaskModal({ open, onClose, initialData }: AddTaskModalProps) {
   const { activeFarmId } = useAppStore();
   const addTask = useDataStore((s) => s.addTask);
+  const updateTask = useDataStore((s) => s.updateTask);
   const { paddocks, users } = useFarmData();
+  const isEdit = !!initialData;
   const [form, setForm] = useState({
     title: '', description: '', priority: 'medium', category: 'general',
     assignedTo: '', dueDate: '', paddockId: '', notes: '',
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (open) {
+      setForm(initialData ? {
+        title: initialData.title,
+        description: initialData.description ?? '',
+        priority: initialData.priority,
+        category: initialData.category ?? 'general',
+        assignedTo: initialData.assignedTo ?? '',
+        dueDate: initialData.dueDate ?? '',
+        paddockId: initialData.paddockId ?? '',
+        notes: initialData.notes ?? '',
+      } : { title: '', description: '', priority: 'medium', category: 'general', assignedTo: '', dueDate: '', paddockId: '', notes: '' });
+    }
+  }, [open]); // eslint-disable-line
+
   const handleSave = () => {
     if (!form.title) { toast.error('Task title is required'); return; }
-    addTask(activeFarmId, {
-      title: form.title,
-      description: form.description || undefined,
-      priority: form.priority as Task['priority'],
-      category: form.category as Task['category'],
-      assignedTo: form.assignedTo || 'Unassigned',
-      dueDate: form.dueDate || new Date().toISOString().slice(0, 10),
-      paddockId: form.paddockId || undefined,
-      notes: form.notes || undefined,
-      status: 'todo',
-    });
-    toast.success(`Task "${form.title}" created!`);
+    if (isEdit && initialData) {
+      updateTask(initialData.id, {
+        title: form.title,
+        description: form.description || undefined,
+        priority: form.priority as Task['priority'],
+        category: form.category as Task['category'],
+        assignedTo: form.assignedTo || 'Unassigned',
+        dueDate: form.dueDate || new Date().toISOString().slice(0, 10),
+        paddockId: form.paddockId || undefined,
+        notes: form.notes || undefined,
+      });
+      toast.success('Task updated!');
+    } else {
+      addTask(activeFarmId, {
+        title: form.title,
+        description: form.description || undefined,
+        priority: form.priority as Task['priority'],
+        category: form.category as Task['category'],
+        assignedTo: form.assignedTo || 'Unassigned',
+        dueDate: form.dueDate || new Date().toISOString().slice(0, 10),
+        paddockId: form.paddockId || undefined,
+        notes: form.notes || undefined,
+        status: 'todo',
+      });
+      toast.success(`Task "${form.title}" created!`);
+    }
     onClose();
-    setForm({ title: '', description: '', priority: 'medium', category: 'general', assignedTo: '', dueDate: '', paddockId: '', notes: '' });
   };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="New Task"
+      title={isEdit ? 'Edit Task' : 'New Task'}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Create Task</button>
+          <button className="btn-primary" onClick={handleSave}>{isEdit ? 'Save Changes' : 'Create Task'}</button>
         </>
       }
     >

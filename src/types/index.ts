@@ -35,7 +35,30 @@ export interface Paddock {
   currentCrop?: string;
   lastActivity?: string;
   notes?: string;
+  color?: string;               // custom map colour (hex)
   coordinates?: [number, number]; // lat, lng centroid
+  polygon?: [number, number][]; // lat/lng array defining the drawn boundary
+}
+
+// ─── Map Features & Fence Lines ───────────────────────────────────────────────
+
+export type MapFeatureType = 'shed' | 'water_trough' | 'dam' | 'gate';
+
+export interface FenceLine {
+  id: string;
+  farmId: string;
+  name: string;
+  points: [number, number][];
+  color?: string;
+}
+
+export interface MapFeature {
+  id: string;
+  farmId: string;
+  type: MapFeatureType;
+  name: string;
+  coordinates: [number, number];
+  notes?: string;
 }
 
 // ─── Livestock ───────────────────────────────────────────────────────────────

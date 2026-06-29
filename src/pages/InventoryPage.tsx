@@ -4,9 +4,11 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { AddInventoryItemModal } from '../components/modals/AddInventoryItemModal';
 import { useFarmData } from '../hooks/useFarmData';
+import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { Plus, Package, AlertTriangle } from 'lucide-react';
-import type { InventoryCategory } from '../types';
+import toast from 'react-hot-toast';
+import { Plus, Package, AlertTriangle, Trash2, Pencil } from 'lucide-react';
+import type { InventoryCategory, InventoryItem } from '../types';
 
 const CATEGORY_LABELS: Record<InventoryCategory, string> = {
   chemical: 'Chemical/Ag', fertiliser: 'Fertiliser', seed: 'Seed',
@@ -25,9 +27,11 @@ const CATEGORY_COLORS: Record<InventoryCategory, string> = {
 
 export function InventoryPage() {
   const { inventory } = useFarmData();
+  const deleteInventoryItem = useDataStore((s) => s.deleteInventoryItem);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showAddItem, setShowAddItem] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | undefined>();
 
   const lowStock = inventory.filter(i => i.minStockLevel !== undefined && i.quantity <= i.minStockLevel);
   const totalValue = inventory.reduce((s, i) => s + (i.costPerUnit ?? 0) * i.quantity, 0);
@@ -41,9 +45,15 @@ export function InventoryPage() {
 
   const categories = Array.from(new Set(inventory.map(i => i.category)));
 
+  const handleDelete = (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}" from inventory? This cannot be undone.`)) return;
+    deleteInventoryItem(id);
+    toast.success('Item deleted');
+  };
+
   return (
     <div className="space-y-6">
-      <AddInventoryItemModal open={showAddItem} onClose={() => setShowAddItem(false)} />
+      <AddInventoryItemModal open={showAddItem || !!editingItem} onClose={() => { setShowAddItem(false); setEditingItem(undefined); }} initialData={editingItem} />
       <PageHeader
         title="Inventory & Stores"
         subtitle="Chemicals, seed, fertiliser, fuel, feed & parts"
@@ -90,7 +100,7 @@ export function InventoryPage() {
         <table className="w-full min-w-[700px]">
           <thead>
             <tr>
-              {['Item', 'Category', 'Qty', 'Unit', 'Min Stock', 'Location', 'Unit Cost', 'Total Value', 'Expiry'].map(h => (
+              {['Item', 'Category', 'Qty', 'Unit', 'Min Stock', 'Location', 'Unit Cost', 'Total Value', 'Expiry', ''].map(h => (
                 <th key={h} className="table-header">{h}</th>
               ))}
             </tr>
@@ -116,6 +126,12 @@ export function InventoryPage() {
                   <td className="table-cell">{item.costPerUnit ? formatCurrency(item.costPerUnit) : '—'}</td>
                   <td className="table-cell font-semibold">{item.costPerUnit ? formatCurrency(item.costPerUnit * item.quantity) : '—'}</td>
                   <td className="table-cell text-xs">{formatDate(item.expiryDate)}</td>
+                  <td className="table-cell">
+                    <div className="flex gap-1">
+                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit item" onClick={() => setEditingItem(item)}><Pencil className="w-3.5 h-3.5" /></button>
+                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete item" onClick={() => handleDelete(item.id, item.name)}><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS paddocks (
   current_crop  TEXT,
   last_activity TEXT,
   notes         TEXT,
+  coordinates   JSONB,           -- [lat, lng] centroid
+  polygon       JSONB,           -- [[lat,lng], ...] drawn boundary
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
-import type { InventoryCategory, InventoryUnit } from '../../types';
+import type { InventoryCategory, InventoryUnit, InventoryItem } from '../../types';
 import toast from 'react-hot-toast';
 
 interface AddInventoryItemModalProps {
   open: boolean;
   onClose: () => void;
+  initialData?: InventoryItem;
 }
 
 const CATEGORIES: { value: InventoryCategory; label: string }[] = [
@@ -28,23 +29,42 @@ const INITIAL = {
   costPerUnit: '', expiryDate: '', notes: '',
 };
 
-export function AddInventoryItemModal({ open, onClose }: AddInventoryItemModalProps) {
+export function AddInventoryItemModal({ open, onClose, initialData }: AddInventoryItemModalProps) {
   const { activeFarmId } = useAppStore();
   const addInventoryItem = useDataStore((s) => s.addInventoryItem);
+  const updateInventoryItem = useDataStore((s) => s.updateInventoryItem);
+  const isEdit = !!initialData;
   const [form, setForm] = useState(INITIAL);
   const [saving, setSaving] = useState(false);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (open) {
+      setForm(initialData ? {
+        name: initialData.name,
+        category: initialData.category,
+        unit: initialData.unit,
+        quantity: initialData.quantity.toString(),
+        minStockLevel: initialData.minStockLevel?.toString() ?? '',
+        location: initialData.location ?? '',
+        supplier: initialData.supplier ?? '',
+        costPerUnit: initialData.costPerUnit?.toString() ?? '',
+        expiryDate: initialData.expiryDate ?? '',
+        notes: initialData.notes ?? '',
+      } : INITIAL);
+    }
+  }, [open]); // eslint-disable-line
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Item name is required'); return; }
     if (!form.quantity) { toast.error('Quantity is required'); return; }
     setSaving(true);
     try {
-      addInventoryItem(activeFarmId, {
+      const payload = {
         name:          form.name.trim(),
-        category:      form.category,
-        unit:          form.unit,
+        category:      form.category as InventoryCategory,
+        unit:          form.unit as InventoryUnit,
         quantity:      parseFloat(form.quantity) || 0,
         minStockLevel: form.minStockLevel ? parseFloat(form.minStockLevel) : undefined,
         location:      form.location || undefined,
@@ -52,8 +72,14 @@ export function AddInventoryItemModal({ open, onClose }: AddInventoryItemModalPr
         costPerUnit:   form.costPerUnit ? parseFloat(form.costPerUnit) : undefined,
         expiryDate:    form.expiryDate || undefined,
         notes:         form.notes || undefined,
-      });
-      toast.success(`"${form.name}" added to inventory`);
+      };
+      if (isEdit && initialData) {
+        updateInventoryItem(initialData.id, payload);
+        toast.success(`"${form.name}" updated`);
+      } else {
+        addInventoryItem(activeFarmId, payload);
+        toast.success(`"${form.name}" added to inventory`);
+      }
       setForm(INITIAL);
       onClose();
     } finally {
@@ -65,12 +91,12 @@ export function AddInventoryItemModal({ open, onClose }: AddInventoryItemModalPr
     <Modal
       open={open}
       onClose={onClose}
-      title="Add Inventory Item"
+      title={isEdit ? 'Edit Inventory Item' : 'Add Inventory Item'}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Add Item'}
+            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Item'}
           </button>
         </>
       }

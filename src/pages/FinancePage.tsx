@@ -4,13 +4,14 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { AddTransactionModal } from '../components/modals/AddTransactionModal';
 import { useFarmData } from '../hooks/useFarmData';
+import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { Plus, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import type { TransactionCategory } from '../types';
+import { Plus, TrendingUp, TrendingDown, DollarSign, Trash2, Pencil } from 'lucide-react';
+import type { TransactionCategory, Transaction } from '../types';
 
 const CATEGORY_LABELS: Record<TransactionCategory, string> = {
   livestock_sale: 'Livestock Sale', crop_sale: 'Crop Sale', produce_sale: 'Produce',
@@ -25,10 +26,12 @@ const CATEGORY_LABELS: Record<TransactionCategory, string> = {
 
 export function FinancePage() {
   const { transactions, budgets } = useFarmData();
+  const deleteTransaction = useDataStore((s) => s.deleteTransaction);
   const [tab, setTab] = useState<'ledger' | 'budget'>('ledger');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [showAddTx, setShowAddTx] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | undefined>();
 
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amountAUD, 0);
   const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amountAUD, 0);
@@ -54,9 +57,15 @@ export function FinancePage() {
     };
   });
 
+  const handleDelete = (id: string, desc: string) => {
+    if (!window.confirm(`Delete transaction "${desc}"? This cannot be undone.`)) return;
+    deleteTransaction(id);
+    toast.success('Transaction deleted');
+  };
+
   return (
     <div className="space-y-6">
-      <AddTransactionModal open={showAddTx} onClose={() => setShowAddTx(false)} />
+      <AddTransactionModal open={showAddTx || !!editingTx} onClose={() => { setShowAddTx(false); setEditingTx(undefined); }} initialData={editingTx} />
       <PageHeader
         title="Finance & Accounts"
         subtitle="GST-inclusive Australian farm accounts"
@@ -98,7 +107,7 @@ export function FinancePage() {
           <table className="w-full min-w-[700px]">
             <thead>
               <tr>
-                {['Date', 'Description', 'Category', 'Type', 'GST', 'Amount (AUD)', 'Supplier / Notes'].map(h => (
+                {['Date', 'Description', 'Category', 'Type', 'GST', 'Amount (AUD)', 'Supplier / Notes', ''].map(h => (
                   <th key={h} className="table-header">{h}</th>
                 ))}
               </tr>
@@ -117,6 +126,12 @@ export function FinancePage() {
                     {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amountAUD)}
                   </td>
                   <td className="table-cell text-xs text-gray-400">{t.supplier ?? t.notes ?? '—'}</td>
+                  <td className="table-cell">
+                    <div className="flex gap-1">
+                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit" onClick={() => setEditingTx(t)}><Pencil className="w-3.5 h-3.5" /></button>
+                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete" onClick={() => handleDelete(t.id, t.description)}><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -126,6 +141,7 @@ export function FinancePage() {
                 <td className={`table-cell font-extrabold text-lg ${income - expense >= 0 ? 'text-farm-700' : 'text-red-600'}`}>
                   {formatCurrency(income - expense)}
                 </td>
+                <td />
                 <td />
               </tr>
             </tfoot>

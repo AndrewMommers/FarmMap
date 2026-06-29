@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
-import type { EquipmentCategory, EquipmentStatus } from '../../types';
+import type { EquipmentCategory, EquipmentStatus, Equipment } from '../../types';
 import toast from 'react-hot-toast';
 
 interface AddEquipmentModalProps {
   open: boolean;
   onClose: () => void;
+  initialData?: Equipment;
 }
 
 const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
@@ -36,22 +37,44 @@ const INITIAL = {
   purchaseDate: '', purchasePriceAUD: '', notes: '',
 };
 
-export function AddEquipmentModal({ open, onClose }: AddEquipmentModalProps) {
+export function AddEquipmentModal({ open, onClose, initialData }: AddEquipmentModalProps) {
   const { activeFarmId } = useAppStore();
   const addEquipment = useDataStore((s) => s.addEquipment);
+  const updateEquipment = useDataStore((s) => s.updateEquipment);
+  const isEdit = !!initialData;
   const [form, setForm] = useState(INITIAL);
   const [saving, setSaving] = useState(false);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (open) {
+      setForm(initialData ? {
+        name:             initialData.name,
+        category:         initialData.category,
+        status:           initialData.status,
+        make:             initialData.make ?? '',
+        model:            initialData.model ?? '',
+        year:             initialData.year?.toString() ?? '',
+        serialNumber:     initialData.serialNumber ?? '',
+        lastServiceDate:  initialData.lastServiceDate ?? '',
+        nextServiceDate:  initialData.nextServiceDate ?? '',
+        hoursOrKm:        initialData.hoursOrKm?.toString() ?? '',
+        purchaseDate:     initialData.purchaseDate ?? '',
+        purchasePriceAUD: initialData.purchasePriceAUD?.toString() ?? '',
+        notes:            initialData.notes ?? '',
+      } : INITIAL);
+    }
+  }, [open]); // eslint-disable-line
+
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Equipment name is required'); return; }
     setSaving(true);
     try {
-      addEquipment(activeFarmId, {
+      const payload = {
         name:             form.name.trim(),
-        category:         form.category,
-        status:           form.status,
+        category:         form.category as EquipmentCategory,
+        status:           form.status as EquipmentStatus,
         make:             form.make || '',
         model:            form.model || '',
         year:             form.year ? parseInt(form.year, 10) : undefined,
@@ -62,8 +85,14 @@ export function AddEquipmentModal({ open, onClose }: AddEquipmentModalProps) {
         purchaseDate:     form.purchaseDate || undefined,
         purchasePriceAUD: form.purchasePriceAUD ? parseFloat(form.purchasePriceAUD) : undefined,
         notes:            form.notes || undefined,
-      });
-      toast.success(`"${form.name}" added to equipment`);
+      };
+      if (isEdit && initialData) {
+        updateEquipment(initialData.id, payload);
+        toast.success(`"${form.name}" updated`);
+      } else {
+        addEquipment(activeFarmId, payload);
+        toast.success(`"${form.name}" added to equipment`);
+      }
       setForm(INITIAL);
       onClose();
     } finally {
@@ -75,12 +104,12 @@ export function AddEquipmentModal({ open, onClose }: AddEquipmentModalProps) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Add Equipment"
+      title={isEdit ? 'Edit Equipment' : 'Add Equipment'}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Add Equipment'}
+            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Equipment'}
           </button>
         </>
       }

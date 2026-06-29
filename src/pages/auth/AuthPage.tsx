@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Wheat, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useAppStore } from '../../store/appStore';
+import { useDataStore } from '../../store/dataStore';
+import { Wheat, Eye, EyeOff, Loader2, PlayCircle } from 'lucide-react';
 
 export function AuthPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -12,6 +14,8 @@ export function AuthPage() {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuthStore();
+  const { setDemoMode } = useAppStore();
+  const { loadDemoData } = useDataStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +150,23 @@ export function AuthPage() {
               </button>
             </p>
           )}
+
+          {/* Demo separator */}
+          <div className="flex items-center gap-3 mt-5">
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          </div>
+
+          {/* Try Demo */}
+          <button
+            type="button"
+            onClick={() => { loadDemoData(); setDemoMode(true); }}
+            className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-farm-300 dark:border-farm-700 text-farm-700 dark:text-farm-300 hover:bg-farm-50 dark:hover:bg-farm-900/30 font-semibold text-sm transition-colors"
+          >
+            <PlayCircle className="w-4 h-4" />
+            Try Demo — explore with sample data
+          </button>
         </div>
 
         <p className="text-center text-farm-400 text-xs mt-6">

@@ -17,22 +17,24 @@ import { AuthPage } from './pages/auth/AuthPage';
 import { CreateFarmPage } from './pages/onboarding/CreateFarmPage';
 import { useAuthStore } from './store/authStore';
 import { useDataStore } from './store/dataStore';
+import { useAppStore } from './store/appStore';
 import { supabase } from './lib/supabase';
 import { Wheat, Loader2 } from 'lucide-react';
 
 export default function App() {
   const { session, authLoading, setSession } = useAuthStore();
   const { dataLoading, farms, loadFromSupabase, clearData, subscribeToRealtime } = useDataStore();
+  const { demoMode } = useAppStore();
   const unsubRef = useRef<(() => void) | null>(null);
 
-  // ── Bootstrap auth ────────────────────────────────────────────────────────
+  // ── Bootstrap auth (skipped in demo mode) ─────────────────────────────────
   useEffect(() => {
-    // Get the initial session (runs once on mount)
+    if (demoMode) return; // demo doesn't need Supabase auth
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
     });
 
-    // Listen for sign-in / sign-out events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       if (!s) {
@@ -43,11 +45,11 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [demoMode]);
 
   // ── Load data when session changes ────────────────────────────────────────
   useEffect(() => {
-    if (!session?.user) return;
+    if (demoMode || !session?.user) return;
 
     loadFromSupabase(session.user.id).then(() => {
       const farmIds = useDataStore.getState().farms.map((f) => f.id);
@@ -56,10 +58,35 @@ export default function App() {
       unsubRef.current = subscribeToRealtime(farmIds);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
+  }, [session?.user?.id, demoMode]);
+
+  // ── Demo mode: go straight to main app ───────────────────────────────────
+  if (demoMode && farms.length > 0) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/"            element={<DashboardPage />} />
+            <Route path="/paddocks"    element={<PaddocksPage />} />
+            <Route path="/livestock"   element={<LivestockPage />} />
+            <Route path="/crops"       element={<CropsPage />} />
+            <Route path="/equipment"   element={<EquipmentPage />} />
+            <Route path="/finance"     element={<FinancePage />} />
+            <Route path="/inventory"   element={<InventoryPage />} />
+            <Route path="/weather"     element={<WeatherPage />} />
+            <Route path="/tasks"       element={<TasksPage />} />
+            <Route path="/reports"     element={<ReportsPage />} />
+            <Route path="/compliance"  element={<CompliancePage />} />
+            <Route path="/settings"    element={<SettingsPage />} />
+            <Route path="*"            element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    );
+  }
 
   // ── Loading screen ────────────────────────────────────────────────────────
-  if (authLoading || (session && dataLoading)) {
+  if (!demoMode && (authLoading || (session && dataLoading))) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-farm-900 to-farm-800">
         <div className="w-16 h-16 rounded-2xl bg-farm-500 flex items-center justify-center shadow-lg">
@@ -72,9 +99,9 @@ export default function App() {
   }
 
   // ── Not authenticated → show login ────────────────────────────────────────
-  if (!session) return <AuthPage />;
+  if (!demoMode && !session) return <AuthPage />;
 
-  // ── Authenticated but no farms yet → onboarding (no router needed) ────────
+  // ── Authenticated but no farms yet → onboarding ───────────────────────────
   if (farms.length === 0) {
     return (
       <BrowserRouter>

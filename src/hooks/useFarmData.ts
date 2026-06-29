@@ -1,6 +1,6 @@
 import { useAppStore } from '../store/appStore';
 import { useDataStore } from '../store/dataStore';
-import { weatherReadings, rainfallSummary } from '../data/mockData';
+import { useWeatherHistory } from './useWeatherHistory';
 
 /**
  * Returns all data filtered to the currently active farm.
@@ -10,13 +10,20 @@ export function useFarmData() {
   const { activeFarmId } = useAppStore();
   const store = useDataStore();
 
+  const farm = store.farms.find((f) => f.id === activeFarmId) ?? store.farms[0];
+  const farmPaddocks = store.paddocks.filter((p) => p.farmId === activeFarmId);
+  const firstCoords = farmPaddocks.find((p) => p.coordinates)?.coordinates;
+
+  const { readings: weatherReadings, rainfallSummary, loading: weatherLoading } =
+    useWeatherHistory(farm?.address, firstCoords);
+
   const farmEquipment = store.equipment.filter((e) => e.farmId === activeFarmId);
   const farmEquipmentIds = farmEquipment.map((e) => e.id);
 
   return {
     activeFarmId,
-    farm:            store.farms.find((f) => f.id === activeFarmId) ?? store.farms[0],
-    paddocks:        store.paddocks.filter((p) => p.farmId === activeFarmId),
+    farm,
+    paddocks:        farmPaddocks,
     livestockMobs:   store.livestockMobs.filter((m) => m.farmId === activeFarmId),
     livestock:       store.livestock.filter((l) => l.farmId === activeFarmId),
     crops:           store.crops.filter((c) => c.farmId === activeFarmId),
@@ -30,5 +37,6 @@ export function useFarmData() {
     users:           store.users.filter((u) => u.farmId === activeFarmId),
     weatherReadings,
     rainfallSummary,
+    weatherLoading,
   };
 }

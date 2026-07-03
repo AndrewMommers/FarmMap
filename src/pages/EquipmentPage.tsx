@@ -4,11 +4,13 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { SortableHeader } from '../components/ui/SortableHeader';
+import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate, formatCurrency } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
+import { downloadCSV, downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
 import { Plus, Wrench, AlertTriangle, Trash2, Pencil } from 'lucide-react';
 import type { Equipment } from '../types';
@@ -66,6 +68,26 @@ export function EquipmentPage() {
     toast.success('Equipment deleted');
   };
 
+  const EQ_HEADERS = ['Name', 'Category', 'Make / Model', 'Year', 'Serial', 'Status', 'Hours/km', 'Last Service', 'Next Service', 'Value'];
+  const eqRows = () => filtered.map(e => [
+    e.name, e.category, `${e.make} ${e.model}`, e.year ?? '', e.serialNumber ?? '',
+    e.status, e.hoursOrKm ?? '', e.lastServiceDate ?? '', e.nextServiceDate ?? '',
+    e.purchasePriceAUD ?? '',
+  ]);
+  const LOG_HEADERS = ['Date', 'Equipment', 'Type', 'Description', 'Cost', 'Technician', 'Next Due'];
+  const logRows = () => sortedLogs.map(l => [
+    l.date,
+    equipment.find(e => e.id === l.equipmentId)?.name ?? '',
+    l.type, l.description, l.costAUD ?? '', l.technician ?? '', l.nextDueDate ?? '',
+  ]);
+
+  const handleExportCSV = () => tab === 'fleet'
+    ? downloadCSV('farmmap-equipment', EQ_HEADERS, eqRows())
+    : downloadCSV('farmmap-maintenance-log', LOG_HEADERS, logRows());
+  const handleExportPDF = () => tab === 'fleet'
+    ? downloadPDF('farmmap-equipment', 'Equipment & Fleet', EQ_HEADERS, eqRows(), `${filtered.length} items`)
+    : downloadPDF('farmmap-maintenance-log', 'Maintenance Log', LOG_HEADERS, logRows(), `${sortedLogs.length} records`);
+
   return (
     <div className="space-y-6">
       <AddEquipmentModal open={showAddEquipment || !!editingEquipment} onClose={() => { setShowAddEquipment(false); setEditingEquipment(undefined); }} initialData={editingEquipment} />
@@ -73,9 +95,12 @@ export function EquipmentPage() {
         title="Equipment & Fleet"
         subtitle="Machinery, vehicles, and maintenance records"
         actions={
-          <button className="btn-primary" onClick={() => setShowAddEquipment(true)}>
-            <Plus className="w-4 h-4" /> Add Equipment
-          </button>
+          <>
+            <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
+            <button className="btn-primary" onClick={() => setShowAddEquipment(true)}>
+              <Plus className="w-4 h-4" /> Add Equipment
+            </button>
+          </>
         }
       />
 

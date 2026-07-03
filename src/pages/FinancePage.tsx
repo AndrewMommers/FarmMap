@@ -3,11 +3,13 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { SortableHeader } from '../components/ui/SortableHeader';
+import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddTransactionModal } from '../components/modals/AddTransactionModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
+import { downloadCSV, downloadPDF } from '../lib/export';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -80,6 +82,26 @@ export function FinancePage() {
     toast.success('Transaction deleted');
   };
 
+  const CSV_HEADERS = ['Date', 'Description', 'Category', 'Type', 'GST', 'Amount (AUD)', 'Supplier'];
+  const exportRows = () => filtered.map(t => [
+    t.date,
+    t.description,
+    CATEGORY_LABELS[t.category] ?? t.category,
+    t.type,
+    t.gstIncluded ? 'Yes' : 'No',
+    t.type === 'income' ? t.amountAUD : -t.amountAUD,
+    t.supplier ?? '',
+  ]);
+
+  const handleExportCSV = () => downloadCSV('farmmap-transactions', CSV_HEADERS, exportRows());
+  const handleExportPDF = () => downloadPDF(
+    'farmmap-transactions',
+    'Finance Ledger',
+    CSV_HEADERS,
+    exportRows(),
+    `${filtered.length} transactions · Net: ${formatCurrency(income - expense)}`,
+  );
+
   return (
     <div className="space-y-6">
       <AddTransactionModal open={showAddTx || !!editingTx} onClose={() => { setShowAddTx(false); setEditingTx(undefined); }} initialData={editingTx} />
@@ -88,7 +110,7 @@ export function FinancePage() {
         subtitle="GST-inclusive Australian farm accounts"
         actions={
           <>
-            <button className="btn-secondary" onClick={() => toast('Export to CSV – coming soon')}>Export</button>
+            <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
             <button className="btn-primary" onClick={() => setShowAddTx(true)}>
               <Plus className="w-4 h-4" /> New Transaction
             </button>

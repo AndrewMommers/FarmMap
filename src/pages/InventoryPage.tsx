@@ -3,11 +3,13 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { SortableHeader } from '../components/ui/SortableHeader';
+import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddInventoryItemModal } from '../components/modals/AddInventoryItemModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
+import { downloadCSV, downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
 import { Plus, Package, AlertTriangle, Trash2, Pencil } from 'lucide-react';
 import type { InventoryCategory, InventoryItem } from '../types';
@@ -67,6 +69,28 @@ export function InventoryPage() {
     toast.success('Item deleted');
   };
 
+  const INV_HEADERS = ['Item', 'Category', 'Qty', 'Unit', 'Min Stock', 'Location', 'Unit Cost', 'Total Value', 'Expiry'];
+  const invRows = () => filtered.map(i => [
+    i.name,
+    CATEGORY_LABELS[i.category as InventoryCategory] ?? i.category,
+    i.quantity,
+    i.unit,
+    i.minStockLevel ?? '',
+    i.location ?? '',
+    i.costPerUnit ?? '',
+    i.costPerUnit ? i.costPerUnit * i.quantity : '',
+    i.expiryDate ?? '',
+  ]);
+
+  const handleExportCSV = () => downloadCSV('farmmap-inventory', INV_HEADERS, invRows());
+  const handleExportPDF = () => downloadPDF(
+    'farmmap-inventory',
+    'Inventory & Stores',
+    INV_HEADERS,
+    invRows(),
+    `${filtered.length} items · Total value ${formatCurrency(filtered.reduce((s,i) => s + (i.costPerUnit ?? 0) * i.quantity, 0))}`,
+  );
+
   return (
     <div className="space-y-6">
       <AddInventoryItemModal open={showAddItem || !!editingItem} onClose={() => { setShowAddItem(false); setEditingItem(undefined); }} initialData={editingItem} />
@@ -74,9 +98,12 @@ export function InventoryPage() {
         title="Inventory & Stores"
         subtitle="Chemicals, seed, fertiliser, fuel, feed & parts"
         actions={
-          <button className="btn-primary" onClick={() => setShowAddItem(true)}>
-            <Plus className="w-4 h-4" /> Add Item
-          </button>
+          <>
+            <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
+            <button className="btn-primary" onClick={() => setShowAddItem(true)}>
+              <Plus className="w-4 h-4" /> Add Item
+            </button>
+          </>
         }
       />
 

@@ -3,10 +3,12 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddTaskModal } from '../components/modals/AddTaskModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate } from '../lib/utils';
+import { downloadCSV, downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
 import { Plus, CheckCircle2, Clock, AlertTriangle, ListChecks, Trash2 } from 'lucide-react';
 import type { Task, TaskPriority } from '../types';
@@ -63,6 +65,20 @@ export function TasksPage() {
     toast.success('Task deleted');
   };
 
+  const TASK_HEADERS = ['Title', 'Status', 'Priority', 'Due Date', 'Assigned To', 'Paddock', 'Equipment', 'Description'];
+  const taskRows = () => filtered.map(t => [
+    t.title, t.status.replace('_', ' '), t.priority,
+    t.dueDate ?? '', t.assignedTo ?? '',
+    getPaddock(t.paddockId) ?? '', getEquipment(t.equipmentId) ?? '',
+    t.description ?? '',
+  ]);
+
+  const handleExportCSV = () => downloadCSV('farmmap-tasks', TASK_HEADERS, taskRows());
+  const handleExportPDF = () => downloadPDF(
+    'farmmap-tasks', 'Tasks & Work Orders', TASK_HEADERS, taskRows(),
+    `${filtered.length} tasks · ${overdue} overdue`,
+  );
+
   const StatusIcon = ({ status }: { status: string }) => {
     if (status === 'done') return <CheckCircle2 className="w-4 h-4 text-farm-500" />;
     if (status === 'overdue') return <AlertTriangle className="w-4 h-4 text-red-500" />;
@@ -77,9 +93,12 @@ export function TasksPage() {
         title="Tasks & Work Orders"
         subtitle="Farm task management and work scheduling"
         actions={
-          <button className="btn-primary" onClick={() => setShowAddTask(true)}>
-            <Plus className="w-4 h-4" /> New Task
-          </button>
+          <>
+            <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
+            <button className="btn-primary" onClick={() => setShowAddTask(true)}>
+              <Plus className="w-4 h-4" /> New Task
+            </button>
+          </>
         }
       />
 

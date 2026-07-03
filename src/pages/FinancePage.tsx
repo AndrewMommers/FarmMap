@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { SortableHeader } from '../components/ui/SortableHeader';
 import { AddTransactionModal } from '../components/modals/AddTransactionModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
+import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -30,20 +32,35 @@ export function FinancePage() {
   const [tab, setTab] = useState<'ledger' | 'budget'>('ledger');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showAddTx, setShowAddTx] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | undefined>();
+  const { sort, onSort } = useTableSort('date', 'desc');
 
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amountAUD, 0);
   const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amountAUD, 0);
   const gstCollected = transactions.filter(t => t.type === 'income' && t.gstIncluded).reduce((s, t) => s + t.amountAUD / 11, 0);
   const gstCredits = transactions.filter(t => t.type === 'expense' && t.gstIncluded).reduce((s, t) => s + t.amountAUD / 11, 0);
 
-  const filtered = transactions.filter(t => {
-    const q = t.description.toLowerCase().includes(search.toLowerCase()) ||
-      (t.supplier ?? '').toLowerCase().includes(search.toLowerCase());
-    const type = typeFilter === 'all' || t.type === typeFilter;
-    return q && type;
-  });
+  const categories = Array.from(new Set(transactions.map(t => t.category))) as TransactionCategory[];
+
+  const filtered = applySortFn(
+    transactions.filter(t => {
+      const q = t.description.toLowerCase().includes(search.toLowerCase()) ||
+        (t.supplier ?? '').toLowerCase().includes(search.toLowerCase());
+      const type = typeFilter === 'all' || t.type === typeFilter;
+      const cat = categoryFilter === 'all' || t.category === categoryFilter;
+      return q && type && cat;
+    }),
+    sort,
+    {
+      date:        (t) => t.date,
+      description: (t) => t.description.toLowerCase(),
+      category:    (t) => CATEGORY_LABELS[t.category] ?? t.category,
+      type:        (t) => t.type,
+      amount:      (t) => t.amountAUD,
+    }
+  );
 
   // Budget vs actual
   const budgetData = budgets.map(b => {
@@ -97,7 +114,17 @@ export function FinancePage() {
             {(['all', 'income', 'expense'] as const).map(f => (
               <button key={f} onClick={() => setTypeFilter(f)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${typeFilter === f ? 'bg-farm-700 text-white border-farm-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-farm-300'}`}>{f}</button>
             ))}
-            <SearchBar value={search} onChange={setSearch} placeholder="Search…" className="w-48 ml-auto" />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="input text-sm py-1.5 w-44"
+            >
+              <option value="all">All Categories</option>
+              {categories.map(c => (
+                <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
+              ))}
+            </select>
+            <SearchBar value={search} onChange={setSearch} placeholder="Search…" className="w-44 ml-auto" />
           </>
         )}
       </div>
@@ -107,9 +134,14 @@ export function FinancePage() {
           <table className="w-full min-w-[700px]">
             <thead>
               <tr>
-                {['Date', 'Description', 'Category', 'Type', 'GST', 'Amount (AUD)', 'Supplier / Notes', ''].map(h => (
-                  <th key={h} className="table-header">{h}</th>
-                ))}
+                <SortableHeader label="Date"         sortKey="date"        sort={sort} onSort={onSort} />
+                <SortableHeader label="Description"  sortKey="description" sort={sort} onSort={onSort} />
+                <SortableHeader label="Category"     sortKey="category"    sort={sort} onSort={onSort} />
+                <SortableHeader label="Type"         sortKey="type"        sort={sort} onSort={onSort} />
+                <th className="table-header">GST</th>
+                <SortableHeader label="Amount (AUD)" sortKey="amount"      sort={sort} onSort={onSort} />
+                <th className="table-header">Supplier / Notes</th>
+                <th className="table-header"></th>
               </tr>
             </thead>
             <tbody>

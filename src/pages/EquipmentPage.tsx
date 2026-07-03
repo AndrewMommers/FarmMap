@@ -3,10 +3,12 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { SortableHeader } from '../components/ui/SortableHeader';
 import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate, formatCurrency } from '../lib/utils';
+import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import toast from 'react-hot-toast';
 import { Plus, Wrench, AlertTriangle, Trash2, Pencil } from 'lucide-react';
 import type { Equipment } from '../types';
@@ -16,16 +18,41 @@ export function EquipmentPage() {
   const deleteEquipment = useDataStore((s) => s.deleteEquipment);
   const [tab, setTab] = useState<'fleet' | 'maintenance'>('fleet');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddEquipment, setShowAddEquipment] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | undefined>();
+  const { sort: fleetSort, onSort: onFleetSort } = useTableSort('name', 'asc');
+  const { sort: logSort, onSort: onLogSort } = useTableSort('date', 'desc');
 
   const operational = equipment.filter(e => e.status === 'operational').length;
   const inMaintenance = equipment.filter(e => e.status === 'maintenance' || e.status === 'repair').length;
 
-  const filtered = equipment.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.make.toLowerCase().includes(search.toLowerCase()) ||
-    e.category.toLowerCase().includes(search.toLowerCase())
+  const filtered = applySortFn(
+    equipment.filter(e =>
+      (e.name.toLowerCase().includes(search.toLowerCase()) ||
+       e.make.toLowerCase().includes(search.toLowerCase()) ||
+       e.category.toLowerCase().includes(search.toLowerCase())) &&
+      (statusFilter === 'all' || e.status === statusFilter)
+    ),
+    fleetSort,
+    {
+      name:     (e) => e.name.toLowerCase(),
+      category: (e) => e.category,
+      status:   (e) => e.status,
+      year:     (e) => e.year ?? 0,
+    }
+  );
+
+  const sortedLogs = applySortFn(
+    maintenanceLogs,
+    logSort,
+    {
+      date:     (l) => l.date,
+      equipment:(l) => equipment.find(e => e.id === l.equipmentId)?.name.toLowerCase() ?? '',
+      type:     (l) => l.type,
+      cost:     (l) => l.costAUD ?? 0,
+      nextDue:  (l) => l.nextDueDate ?? '',
+    }
   );
 
   const categoryIcon: Record<string, string> = {
@@ -64,7 +91,24 @@ export function EquipmentPage() {
           <button onClick={() => setTab('fleet')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'fleet' ? 'bg-farm-700 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-farm-700 dark:hover:text-farm-300'}`}>Fleet</button>
           <button onClick={() => setTab('maintenance')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'maintenance' ? 'bg-farm-700 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-farm-700 dark:hover:text-farm-300'}`}>Maintenance Log</button>
         </div>
-        <SearchBar value={search} onChange={setSearch} placeholder="Search equipment…" className="w-48 ml-auto" />
+        {(['all', 'operational', 'maintenance', 'repair'] as const).map(s => (
+          <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${statusFilter === s ? 'bg-farm-700 text-white border-farm-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-farm-300'}`}>
+            {s === 'all' ? 'All' : s}
+          </button>
+        ))}
+        {tab === 'fleet' && (
+          <select
+            value={fleetSort.key}
+            onChange={(e) => onFleetSort(e.target.value)}
+            className="input text-sm py-1.5 w-36"
+          >
+            <option value="name">Sort: Name</option>
+            <option value="category">Sort: Category</option>
+            <option value="status">Sort: Status</option>
+            <option value="year">Sort: Year</option>
+          </select>
+        )}
+        <SearchBar value={search} onChange={setSearch} placeholder="Search equipment…" className="w-44 ml-auto" />
       </div>
 
       {tab === 'fleet' ? (
@@ -102,13 +146,17 @@ export function EquipmentPage() {
           <table className="w-full min-w-[600px]">
             <thead>
               <tr>
-                {['Date', 'Equipment', 'Type', 'Description', 'Cost', 'Technician', 'Next Due'].map(h => (
-                  <th key={h} className="table-header">{h}</th>
-                ))}
+                <SortableHeader label="Date"      sortKey="date"      sort={logSort} onSort={onLogSort} />
+                <SortableHeader label="Equipment" sortKey="equipment" sort={logSort} onSort={onLogSort} />
+                <SortableHeader label="Type"      sortKey="type"      sort={logSort} onSort={onLogSort} />
+                <th className="table-header">Description</th>
+                <SortableHeader label="Cost"      sortKey="cost"      sort={logSort} onSort={onLogSort} />
+                <th className="table-header">Technician</th>
+                <SortableHeader label="Next Due"  sortKey="nextDue"   sort={logSort} onSort={onLogSort} />
               </tr>
             </thead>
             <tbody>
-              {maintenanceLogs.map((log) => {
+              {sortedLogs.map((log) => {
                 const eq = equipment.find(e => e.id === log.equipmentId);
                 return (
                   <tr key={log.id} className="hover:bg-farm-50/50 transition-colors">

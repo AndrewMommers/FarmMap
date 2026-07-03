@@ -22,6 +22,7 @@ export function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'title' | 'status'>('priority');
 
   const todo = tasks.filter(t => t.status === 'todo').length;
   const inProgress = tasks.filter(t => t.status === 'in_progress').length;
@@ -37,9 +38,15 @@ export function TasksPage() {
       return q && s && p;
     })
     .sort((a, b) => {
-      const pi = PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
-      if (pi !== 0) return pi;
-      return (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
+      if (sortBy === 'priority') {
+        const pi = PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+        if (pi !== 0) return pi;
+        return (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
+      }
+      if (sortBy === 'dueDate') return (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999');
+      if (sortBy === 'title')   return a.title.localeCompare(b.title);
+      if (sortBy === 'status')  return a.status.localeCompare(b.status);
+      return 0;
     });
 
   const getPaddock = (id?: string) => paddocks.find(p => p.id === id)?.name;
@@ -94,7 +101,17 @@ export function TasksPage() {
         {(['all', 'critical', 'high', 'medium', 'low'] as const).map(p => (
           <button key={p} onClick={() => setPriorityFilter(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${priorityFilter === p ? 'bg-farm-700 text-white border-farm-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-farm-300'}`}>{p}</button>
         ))}
-        <SearchBar value={search} onChange={setSearch} placeholder="Search tasks…" className="w-48 ml-auto" />
+        <SearchBar value={search} onChange={setSearch} placeholder="Search tasks…" className="w-44" />
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          className="input text-sm py-1.5 w-36"
+        >
+          <option value="priority">Sort: Priority</option>
+          <option value="dueDate">Sort: Due Date</option>
+          <option value="title">Sort: Title A-Z</option>
+          <option value="status">Sort: Status</option>
+        </select>
       </div>
 
       {/* Task cards */}

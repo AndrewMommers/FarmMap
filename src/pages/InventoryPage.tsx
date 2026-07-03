@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { SortableHeader } from '../components/ui/SortableHeader';
 import { AddInventoryItemModal } from '../components/modals/AddInventoryItemModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatCurrency, formatDate } from '../lib/utils';
+import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import toast from 'react-hot-toast';
 import { Plus, Package, AlertTriangle, Trash2, Pencil } from 'lucide-react';
 import type { InventoryCategory, InventoryItem } from '../types';
@@ -30,18 +32,32 @@ export function InventoryPage() {
   const deleteInventoryItem = useDataStore((s) => s.deleteInventoryItem);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>();
+  const { sort, onSort } = useTableSort('name', 'asc');
 
   const lowStock = inventory.filter(i => i.minStockLevel !== undefined && i.quantity <= i.minStockLevel);
   const totalValue = inventory.reduce((s, i) => s + (i.costPerUnit ?? 0) * i.quantity, 0);
 
-  const filtered = inventory.filter(i => {
-    const q = i.name.toLowerCase().includes(search.toLowerCase()) ||
-      (i.location ?? '').toLowerCase().includes(search.toLowerCase());
-    const cat = categoryFilter === 'all' || i.category === categoryFilter;
-    return q && cat;
-  });
+  const filtered = applySortFn(
+    inventory.filter(i => {
+      const q = i.name.toLowerCase().includes(search.toLowerCase()) ||
+        (i.location ?? '').toLowerCase().includes(search.toLowerCase());
+      const cat = categoryFilter === 'all' || i.category === categoryFilter;
+      const low = !lowStockOnly || (i.minStockLevel !== undefined && i.quantity <= i.minStockLevel);
+      return q && cat && low;
+    }),
+    sort,
+    {
+      name:       (i) => i.name.toLowerCase(),
+      category:   (i) => CATEGORY_LABELS[i.category as InventoryCategory] ?? i.category,
+      quantity:   (i) => i.quantity,
+      unitCost:   (i) => i.costPerUnit ?? 0,
+      totalValue: (i) => (i.costPerUnit ?? 0) * i.quantity,
+      expiry:     (i) => i.expiryDate ?? '',
+    }
+  );
 
   const categories = Array.from(new Set(inventory.map(i => i.category)));
 
@@ -92,7 +108,13 @@ export function InventoryPage() {
             {CATEGORY_LABELS[cat as InventoryCategory] ?? cat}
           </button>
         ))}
-        <SearchBar value={search} onChange={setSearch} placeholder="Search inventory…" className="w-48 ml-auto" />
+        <button
+          onClick={() => setLowStockOnly((v) => !v)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors inline-flex items-center gap-1.5 ${lowStockOnly ? 'bg-amber-500 text-white border-amber-500' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-amber-400'}`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" /> Low Stock Only
+        </button>
+        <SearchBar value={search} onChange={setSearch} placeholder="Search inventory…" className="w-44 ml-auto" />
       </div>
 
       {/* Table */}
@@ -100,9 +122,16 @@ export function InventoryPage() {
         <table className="w-full min-w-[700px]">
           <thead>
             <tr>
-              {['Item', 'Category', 'Qty', 'Unit', 'Min Stock', 'Location', 'Unit Cost', 'Total Value', 'Expiry', ''].map(h => (
-                <th key={h} className="table-header">{h}</th>
-              ))}
+              <SortableHeader label="Item"        sortKey="name"       sort={sort} onSort={onSort} />
+              <SortableHeader label="Category"    sortKey="category"   sort={sort} onSort={onSort} />
+              <SortableHeader label="Qty"         sortKey="quantity"   sort={sort} onSort={onSort} />
+              <th className="table-header">Unit</th>
+              <th className="table-header">Min Stock</th>
+              <th className="table-header">Location</th>
+              <SortableHeader label="Unit Cost"   sortKey="unitCost"   sort={sort} onSort={onSort} />
+              <SortableHeader label="Total Value" sortKey="totalValue" sort={sort} onSort={onSort} />
+              <SortableHeader label="Expiry"      sortKey="expiry"     sort={sort} onSort={onSort} />
+              <th className="table-header"></th>
             </tr>
           </thead>
           <tbody>

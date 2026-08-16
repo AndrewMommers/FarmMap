@@ -38,6 +38,9 @@ export interface Paddock {
   color?: string;               // custom map colour (hex)
   coordinates?: [number, number]; // lat, lng centroid
   polygon?: [number, number][]; // lat/lng array defining the drawn boundary
+  // ── Telematics link ───────────────────────────────────────────────────────
+  externalProvider?: IntegrationProvider; // set if this boundary was imported/matched from a provider
+  externalBoundaryId?: string;            // provider's field boundary ID
 }
 
 // ─── Map Features & Fence Lines ───────────────────────────────────────────────
@@ -151,6 +154,12 @@ export interface Equipment {
   purchaseDate?: string;
   purchasePriceAUD?: number;
   notes?: string;
+  // ── Telematics link (see IntegrationProvider) ────────────────────────────
+  externalProvider?: IntegrationProvider; // e.g. 'john_deere' if this machine is synced from a telematics platform
+  externalId?: string;          // provider's machine/asset ID
+  engineHoursSynced?: number;   // last engine-hours reading pulled from the provider
+  lastTelemetryAt?: string;     // ISO timestamp of the last successful telemetry sync
+  lastLocation?: [number, number]; // [lat, lng] of last known machine position
 }
 
 export interface MaintenanceLog {
@@ -186,6 +195,10 @@ export interface Transaction {
   invoiceNumber?: string;
   paddockId?: string;
   notes?: string;
+  // ── Finance integration link (see IntegrationProvider) ───────────────────
+  externalProvider?: IntegrationProvider; // e.g. 'xero' if synced from accounting software, 'zepto' if paid via real-time bank payment
+  externalId?: string;          // provider's transaction/invoice/payment ID
+  paymentStatus?: 'pending' | 'completed' | 'failed'; // payment lifecycle, mainly relevant for Zepto-initiated payments
 }
 
 export interface Budget {
@@ -262,13 +275,77 @@ export type UserRole = 'owner' | 'manager' | 'operator' | 'agronomist' | 'accoun
 export interface User {
   id: string;
   farmId: string;
+  /** Links this team-directory row to a real Supabase Auth account, when one exists.
+   *  Unset for teammates who are contacts only (no login of their own yet). */
+  userId?: string;
   name: string;
   email: string;
   role: UserRole;
   phone?: string;
+  /** A single emoji chosen as this person's avatar; falls back to initials when unset. */
   avatar?: string;
   active: boolean;
   lastLogin?: string;
+}
+
+// ─── Devices (Tractor Mode) ─────────────────────────────────────────────────────
+// A "device" is a browser/tablet registered from inside the cab so it can be
+// named, assigned to an operator, and revoked from Settings. Registration
+// always happens from an already-authenticated session on that device itself
+// (see docs/DEVICES.md for the security model) — it is not a separate login.
+
+export type DeviceStatus = 'active' | 'revoked';
+
+export interface Device {
+  id: string;
+  farmId: string;
+  name: string;                 // e.g. "8R Cab Tablet", "Ute Phone"
+  assignedUserId?: string;      // optional User.id this device usually rides with
+  status: DeviceStatus;
+  lastActiveAt?: string;
+  /** GPS position, foreground-only, reported while Tractor Mode is open on
+   *  this device (see docs/GEOFENCING.md). [lat, lng]. */
+  lastLocation?: [number, number];
+  lastLocationAt?: string;
+  createdAt: string;
+}
+
+// ─── Geofencing ──────────────────────────────────────────────────────────────
+// A device's live position is checked against paddock boundaries (reusing
+// Paddock.polygon — no separate zone-drawing tool). Crossing a boundary logs
+// an event here, farm-owner-visible from Settings → Devices.
+
+export type GeofenceEventType = 'enter' | 'exit';
+
+export interface GeofenceEvent {
+  id: string;
+  farmId: string;
+  deviceId: string;
+  paddockId: string;
+  type: GeofenceEventType;
+  occurredAt: string;
+}
+
+// ─── Equipment Telematics Integrations ─────────────────────────────────────────
+// A farm connects an external ag-telematics platform (OAuth) so machine hours,
+// GPS location and field boundaries stay in sync automatically. Tokens are held
+// server-side only (Supabase Edge Functions) — never in the client or this type.
+
+export type IntegrationProvider = 'john_deere' | 'xero' | 'zepto';
+
+export type IntegrationStatus = 'disconnected' | 'connected' | 'error' | 'expired';
+
+export interface IntegrationConnection {
+  id: string;
+  farmId: string;
+  provider: IntegrationProvider;
+  status: IntegrationStatus;
+  externalOrgId?: string;    // provider's organisation/account ID this farm is linked to
+  externalOrgName?: string;
+  scopes?: string[];
+  connectedAt?: string;
+  lastSyncAt?: string;
+  lastError?: string;
 }
 
 // ─── UI State ─────────────────────────────────────────────────────────────────

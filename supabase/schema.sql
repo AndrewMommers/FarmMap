@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS paddocks (
   notes         TEXT,
   coordinates   JSONB,           -- [lat, lng] centroid
   polygon       JSONB,           -- [[lat,lng], ...] drawn boundary
+  external_provider     TEXT,    -- e.g. 'john_deere' if imported/matched from a telematics platform
+  external_boundary_id  TEXT,    -- provider's field boundary ID
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -126,6 +128,11 @@ CREATE TABLE IF NOT EXISTS equipment (
   purchase_date      TEXT,
   purchase_price_aud NUMERIC,
   notes              TEXT,
+  external_provider    TEXT,     -- e.g. 'john_deere' if synced from a telematics platform
+  external_id          TEXT,     -- provider's machine/asset ID
+  engine_hours_synced  NUMERIC,  -- last engine-hours reading pulled from the provider
+  last_telemetry_at    TIMESTAMPTZ,
+  last_location        JSONB,    -- [lat, lng] of last known machine position
   created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -158,6 +165,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   invoice_number TEXT,
   paddock_id     TEXT REFERENCES paddocks(id) ON DELETE SET NULL,
   notes          TEXT,
+  external_provider TEXT,      -- e.g. 'xero' (accounting sync) or 'zepto' (bank payment)
+  external_id       TEXT,      -- provider's transaction/invoice/payment ID
+  payment_status    TEXT,      -- 'pending' | 'completed' | 'failed' — mainly for Zepto payments
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -209,11 +219,50 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Equipment Telematics Integrations ───────────────────────────────────────
+-- A farm connects an external ag-telematics platform (John Deere Operations
+-- Center, and others in future) via OAuth so machine hours, GPS location and
+-- field boundaries can sync automatically. OAuth tokens are split into a
+-- separate table with NO client-facing RLS policies at all — only Supabase
+-- Edge Functions running with the service_role key (which bypasses RLS
+-- entirely) can read or write them. The browser/anon/authenticated roles can
+-- never see a token, even indirectly, only the connection's status/metadata.
+
+CREATE TABLE IF NOT EXISTS integration_connections (
+  id                TEXT PRIMARY KEY,
+  farm_id           TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  provider          TEXT NOT NULL,                 -- e.g. 'john_deere'
+  status            TEXT NOT NULL DEFAULT 'disconnected',
+  external_org_id   TEXT,
+  external_org_name TEXT,
+  scopes            TEXT[],
+  connected_at      TIMESTAMPTZ,
+  last_sync_at      TIMESTAMPTZ,
+  last_error        TEXT,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (farm_id, provider)
+);
+
+-- Tokens live here, never in integration_connections. No RLS policies are
+-- defined for this table on purpose — RLS is enabled with zero policies,
+-- which denies ALL access to anon/authenticated roles by default. Only
+-- service_role (used exclusively by Edge Functions) can touch it.
+CREATE TABLE IF NOT EXISTS integration_tokens (
+  connection_id  TEXT PRIMARY KEY REFERENCES integration_connections(id) ON DELETE CASCADE,
+  access_token   TEXT NOT NULL,
+  refresh_token  TEXT,
+  expires_at     TIMESTAMPTZ,
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ── Farm Users (Team members) ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS farm_users (
   id         TEXT PRIMARY KEY,
   farm_id    TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  -- Links this directory row to a real login, when one exists. Nullable:
+  -- most team members here are contacts entered by the owner, not logins.
+  user_id    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   name       TEXT NOT NULL,
   email      TEXT NOT NULL,
   role       TEXT NOT NULL DEFAULT 'operator',
@@ -222,6 +271,40 @@ CREATE TABLE IF NOT EXISTS farm_users (
   active     BOOLEAN DEFAULT TRUE,
   last_login TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── Devices (Tractor Mode) ─────────────────────────────────────────────────────
+-- Registered from inside the cab, on an already-authenticated device — see
+-- docs/DEVICES.md. Naming/assigning/revoking a device is farm-owner-only;
+-- revocation is enforced client-side (forces sign-out next time that device
+-- checks in), not by cutting off a scoped credential — there isn't one.
+
+CREATE TABLE IF NOT EXISTS devices (
+  id               TEXT PRIMARY KEY,
+  farm_id          TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  assigned_user_id TEXT REFERENCES farm_users(id) ON DELETE SET NULL,
+  status           TEXT NOT NULL DEFAULT 'active',
+  last_active_at   TIMESTAMPTZ,
+  -- GPS position, foreground-only, reported while Tractor Mode is open on
+  -- this device — see docs/GEOFENCING.md.
+  last_location    JSONB,          -- [lat, lng]
+  last_location_at TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── Geofence Events ──────────────────────────────────────────────────────────
+-- A device's live position is checked against paddock boundaries (reusing
+-- Paddock.polygon rather than a separate zone-drawing tool). Crossing a
+-- boundary logs a row here.
+
+CREATE TABLE IF NOT EXISTS geofence_events (
+  id          TEXT PRIMARY KEY,
+  farm_id     TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  paddock_id  TEXT NOT NULL REFERENCES paddocks(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL, -- 'enter' | 'exit'
+  occurred_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================================
@@ -241,6 +324,10 @@ ALTER TABLE budgets         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE farm_users      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE devices         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE geofence_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration_tokens      ENABLE ROW LEVEL SECURITY; -- no policies — service_role only
 
 -- Farms: owner only
 CREATE POLICY farms_owner ON farms FOR ALL USING (user_id = auth.uid());
@@ -260,6 +347,37 @@ CREATE POLICY budgets_owner         ON budgets         FOR ALL USING (farm_id IN
 CREATE POLICY inventory_owner       ON inventory       FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 CREATE POLICY tasks_owner           ON tasks           FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 CREATE POLICY farm_users_owner      ON farm_users      FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+CREATE POLICY devices_owner         ON devices         FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+CREATE POLICY geofence_events_owner ON geofence_events FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+
+-- Integration connections: farm owner can read/manage status rows, but never
+-- the token vault above (integration_tokens has no policies at all).
+CREATE POLICY integration_connections_owner ON integration_connections FOR ALL
+  USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+
+-- ============================================================
+-- Migrations — safe to re-run against an already-deployed database.
+-- (New installs get these columns from the CREATE TABLE statements above
+-- already; these ALTERs exist purely to bring existing databases up to date.)
+-- ============================================================
+
+ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_provider    TEXT;
+ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_boundary_id TEXT;
+
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_provider   TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_id         TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS engine_hours_synced NUMERIC;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_telemetry_at   TIMESTAMPTZ;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_location       JSONB;
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_provider TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_id       TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_status    TEXT;
+
+ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location    JSONB;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location_at TIMESTAMPTZ;
 
 -- ============================================================
 -- Realtime — enable replication on key tables

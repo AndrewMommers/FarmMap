@@ -13,6 +13,7 @@ import { TasksPage } from './pages/TasksPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CompliancePage } from './pages/CompliancePage';
+import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
 import { CreateFarmPage } from './pages/onboarding/CreateFarmPage';
 import { useAuthStore } from './store/authStore';
@@ -60,6 +61,21 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, demoMode]);
 
+  // ── Make sure the signed-in owner has a "My Profile" row per farm ─────────
+  // farm_users is a team directory that predates real logins; this backfills
+  // the owner's own entry (linked via user_id) so "My Profile" has something
+  // to edit. Cheap no-op if it already exists — see dataStore.ensureOwnerProfile.
+  useEffect(() => {
+    if (demoMode || !session?.user || farms.length === 0) return;
+    const authUser = session.user;
+    const name = (authUser.user_metadata?.name as string | undefined) ?? authUser.email ?? 'Owner';
+    for (const f of farms) {
+      useDataStore.getState().ensureOwnerProfile(f.id, authUser.id, authUser.email ?? '', name)
+        .catch((err) => console.error('[App] ensureOwnerProfile failed:', err));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, session?.user?.id, farms.length]);
+
   // ── Demo mode: go straight to main app ───────────────────────────────────
   if (demoMode && farms.length > 0) {
     return (
@@ -98,8 +114,18 @@ export default function App() {
     );
   }
 
-  // ── Not authenticated → show login ────────────────────────────────────────
-  if (!demoMode && !session) return <AuthPage />;
+  // ── Not authenticated → public site + login ───────────────────────────────
+  if (!demoMode && !session) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/"      element={<LandingPage />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="*"      element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
 
   // ── Authenticated but no farms yet → onboarding ───────────────────────────
   if (farms.length === 0) {

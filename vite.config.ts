@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    host: true, // bind to 0.0.0.0 so the dev server is reachable via the PC's LAN IP, not just localhost
+  },
   plugins: [
     react(),
     VitePWA({

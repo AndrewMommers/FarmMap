@@ -1,7 +1,7 @@
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task,
-  WeatherReading, RainfallSummary, User, FenceLine, MapFeature,
+  WeatherReading, RainfallSummary, User, FenceLine, MapFeature, Device, GeofenceEvent,
 } from '../types';
 
 // ─── Farm ─────────────────────────────────────────────────────────────────────
@@ -37,8 +37,8 @@ export const farms: Farm[] = [
 
 export const paddocks: Paddock[] = [
   // Farm 1 – Riverdale Station
-  { id: 'p-1', farmId: 'farm-1', name: 'North Flat', hectares: 480, soilType: 'Red Kandosol', status: 'active', currentCrop: 'Winter Wheat', lastActivity: '2025-05-20', coordinates: [-33.48, 145.52] },
-  { id: 'p-2', farmId: 'farm-1', name: 'South Creek', hectares: 320, soilType: 'Grey Vertosol', status: 'active', currentCrop: 'Canola', lastActivity: '2025-05-18', coordinates: [-33.50, 145.51] },
+  { id: 'p-1', farmId: 'farm-1', name: 'North Flat', hectares: 480, soilType: 'Red Kandosol', status: 'active', currentCrop: 'Winter Wheat', lastActivity: '2025-05-20', coordinates: [-33.48, 145.52], polygon: [[-33.475, 145.513], [-33.475, 145.527], [-33.485, 145.527], [-33.485, 145.513]] },
+  { id: 'p-2', farmId: 'farm-1', name: 'South Creek', hectares: 320, soilType: 'Grey Vertosol', status: 'active', currentCrop: 'Canola', lastActivity: '2025-05-18', coordinates: [-33.50, 145.51], polygon: [[-33.495, 145.503], [-33.495, 145.517], [-33.505, 145.517], [-33.505, 145.503]] },
   { id: 'p-3', farmId: 'farm-1', name: 'Eastern Rise', hectares: 550, soilType: 'Red Sodosol', status: 'fallow', lastActivity: '2025-03-10', coordinates: [-33.47, 145.55] },
   { id: 'p-4', farmId: 'farm-1', name: 'House Paddock', hectares: 120, soilType: 'Sandy loam', status: 'active', currentCrop: 'Lucerne', lastActivity: '2025-06-01', coordinates: [-33.49, 145.50] },
   { id: 'p-5', farmId: 'farm-1', name: 'Bore Run', hectares: 890, soilType: 'Red Earth', status: 'active', currentCrop: 'Pasture', lastActivity: '2025-05-30', coordinates: [-33.51, 145.56] },
@@ -257,6 +257,23 @@ export const users: User[] = [
   { id: 'u-6', farmId: 'farm-2', name: 'Sarah Thornton', email: 'sarah@redgumgrazing.com.au', role: 'owner', phone: '0417 555 001', active: true, lastLogin: '2025-06-29' },
   { id: 'u-7', farmId: 'farm-2', name: 'Ben Thornton', email: 'ben@redgumgrazing.com.au', role: 'manager', phone: '0417 555 002', active: true, lastLogin: '2025-06-28' },
   { id: 'u-8', farmId: 'farm-2', name: 'Grace Olsson', email: 'grace@wimmera-accounts.com.au', role: 'accountant', phone: '03 5382 1234', active: true, lastLogin: '2025-06-20' },
+];
+
+// ─── Devices (Tractor Mode) ─────────────────────────────────────────────────────
+
+export const devices: Device[] = [
+  { id: 'dv-1', farmId: 'farm-1', name: '8R Cab Tablet', assignedUserId: 'u-3', status: 'active', lastActiveAt: '2025-06-29T08:15:00Z', lastLocation: [-33.48, 145.52], lastLocationAt: '2025-06-29T08:15:00Z', createdAt: '2025-02-10' },
+  { id: 'dv-2', farmId: 'farm-1', name: 'Ute Phone — Sarah', assignedUserId: 'u-2', status: 'active', lastActiveAt: '2025-06-28T17:40:00Z', lastLocation: [-33.50, 145.51], lastLocationAt: '2025-06-28T17:40:00Z', createdAt: '2025-03-02' },
+  { id: 'dv-3', farmId: 'farm-1', name: 'Old Harvester Tablet', status: 'revoked', lastActiveAt: '2025-04-11T11:05:00Z', createdAt: '2024-11-20' },
+  { id: 'dv-4', farmId: 'farm-2', name: 'Header Cab Tablet', assignedUserId: 'u-7', status: 'active', lastActiveAt: '2025-06-29T07:50:00Z', createdAt: '2025-01-18' },
+];
+
+// ─── Geofence Events ─────────────────────────────────────────────────────────
+
+export const geofenceEvents: GeofenceEvent[] = [
+  { id: 'gf-1', farmId: 'farm-1', deviceId: 'dv-1', paddockId: 'p-2', type: 'exit',  occurredAt: '2025-06-29T07:52:00Z' },
+  { id: 'gf-2', farmId: 'farm-1', deviceId: 'dv-1', paddockId: 'p-1', type: 'enter', occurredAt: '2025-06-29T08:05:00Z' },
+  { id: 'gf-3', farmId: 'farm-1', deviceId: 'dv-2', paddockId: 'p-2', type: 'enter', occurredAt: '2025-06-28T17:10:00Z' },
 ];
 
 // ─── Fence Lines ──────────────────────────────────────────────────────────────

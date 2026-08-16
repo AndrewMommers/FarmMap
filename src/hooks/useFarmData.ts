@@ -35,6 +35,8 @@ export function useFarmData() {
     inventory:       store.inventory.filter((i) => i.farmId === activeFarmId),
     tasks:           store.tasks.filter((t) => t.farmId === activeFarmId),
     users:           store.users.filter((u) => u.farmId === activeFarmId),
+    devices:         store.devices.filter((d) => d.farmId === activeFarmId),
+    geofenceEvents:  store.geofenceEvents.filter((g) => g.farmId === activeFarmId),
     weatherReadings,
     rainfallSummary,
     weatherLoading,

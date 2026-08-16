@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   MapContainer, TileLayer, Polygon, Popup,
-  useMapEvents, Polyline, CircleMarker, Marker,
+  useMapEvents, Polyline, CircleMarker, Marker, Circle,
 } from 'react-leaflet';
 import L from 'leaflet';
 import type { Paddock, FenceLine, MapFeature, MapFeatureType } from '../../types';
@@ -44,6 +44,8 @@ interface Props {
   /** Initial centre – if undefined the map geocodes `address` */
   center?: [number, number];
   address?: string;
+  /** Live "you are here" marker, e.g. this device's tracked GPS position. */
+  liveMarker?: { position: [number, number]; label?: string; accuracyM?: number | null };
 }
 
 // ─── Status colours ───────────────────────────────────────────────────────────
@@ -68,6 +70,19 @@ function makeDragIcon(color: string) {
     html: `<div style="width:14px;height:14px;background:${color};border:2.5px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:grab;"></div>`,
     iconSize: [14, 14],
     iconAnchor: [7, 7],
+  });
+}
+
+function makeLiveMarkerIcon() {
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:20px;height:20px;">
+      <div style="position:absolute;inset:0;border-radius:50%;background:#0ea5e9;opacity:0.35;animation:farmmap-live-pulse 1.8s ease-out infinite;"></div>
+      <div style="position:absolute;top:5px;left:5px;width:10px;height:10px;border-radius:50%;background:#0ea5e9;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>
+    </div>
+    <style>@keyframes farmmap-live-pulse { 0% { transform: scale(0.6); opacity: 0.5; } 100% { transform: scale(2.2); opacity: 0; } }</style>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 }
 
@@ -278,6 +293,7 @@ export function FarmMapLeaflet({
   drawTool: drawToolProp,
   center: propCenter,
   address,
+  liveMarker,
 }: Props) {
   const [mapCenter, setMapCenter] = useState<[number, number]>(
     propCenter ?? [-27.5, 133.5] // Australia default
@@ -481,6 +497,33 @@ export function FarmMapLeaflet({
             </Popup>
           </Marker>
         ))}
+
+        {/* Live "you are here" marker (e.g. this device's tracked GPS position) */}
+        {liveMarker && (
+          <>
+            {liveMarker.accuracyM != null && liveMarker.accuracyM > 0 && (
+              <Circle
+                center={liveMarker.position}
+                radius={liveMarker.accuracyM}
+                pathOptions={{ color: '#0ea5e9', fillColor: '#0ea5e9', fillOpacity: 0.08, weight: 1 }}
+              />
+            )}
+            <Marker position={liveMarker.position} icon={makeLiveMarkerIcon()} zIndexOffset={500} interactive={false} />
+            {liveMarker.label && (
+              <Marker
+                position={liveMarker.position}
+                icon={L.divIcon({
+                  className: '',
+                  html: `<div style="transform:translate(-50%,14px);white-space:nowrap;background:#0ea5e9;color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.5);">${liveMarker.label}</div>`,
+                  iconSize: [0, 0],
+                  iconAnchor: [0, 0],
+                })}
+                interactive={false}
+                zIndexOffset={500}
+              />
+            )}
+          </>
+        )}
 
         {/* Drawing layer */}
         {isDrawingPaddock && (

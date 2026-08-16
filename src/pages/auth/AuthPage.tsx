@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { useDataStore } from '../../store/dataStore';
-import { Wheat, Eye, EyeOff, Loader2, PlayCircle } from 'lucide-react';
+import { Wheat, Eye, EyeOff, Loader2, PlayCircle, ArrowLeft } from 'lucide-react';
 
 export function AuthPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -39,6 +40,10 @@ export function AuthPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-farm-900 via-farm-800 to-earth-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-farm-300 hover:text-farm-100 mb-6">
+          <ArrowLeft className="w-4 h-4" />
+          Back to home
+        </Link>
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-farm-500 mb-4 shadow-lg">

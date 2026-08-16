@@ -88,7 +88,7 @@ export function ReportsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="YTD Net" value={formatCurrency(income - expense)} icon={<TrendingUp className="w-5 h-5" />} color="green" />
         <StatCard title="Total Hectares" value={`${totalHa.toLocaleString()} ha`} icon={<FileText className="w-5 h-5" />} color="blue" />
         <StatCard title="Total Livestock" value={totalHead.toLocaleString()} icon={<FileText className="w-5 h-5" />} color="amber" />

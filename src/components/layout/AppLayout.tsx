@@ -1,14 +1,29 @@
+import { useEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { BottomNav } from './BottomNav';
 import { TractorModeOverlay } from './TractorModeOverlay';
 import { useAppStore } from '../../store/appStore';
+import { useTractorStore } from '../../store/tractorStore';
+import { useDeviceRevocationGuard } from '../../hooks/useDeviceRevocationGuard';
+import { getPairedDevice } from '../../lib/device';
 import { Toaster } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
 export function AppLayout() {
   useAppStore();
+  useDeviceRevocationGuard();
+
+  // A registered tractor device jumps straight into Tractor Mode once per
+  // visit, rather than showing the full desktop-style app first.
+  const setTractorMode = useTractorStore((s) => s.set);
+  const launchedRef = useRef(false);
+  useEffect(() => {
+    if (launchedRef.current) return;
+    launchedRef.current = true;
+    if (getPairedDevice()) setTractorMode(true);
+  }, [setTractorMode]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-farm-50 dark:bg-gray-950">

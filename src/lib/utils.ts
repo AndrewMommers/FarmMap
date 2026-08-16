@@ -58,6 +58,21 @@ export function formatDate(date: string | undefined): string {
   }).format(new Date(date));
 }
 
+/** Short relative time, e.g. "2 min ago", "3h ago", "5d ago". Falls back to formatDate beyond ~30 days. */
+export function timeAgo(date: string | undefined): string {
+  if (!date) return '—';
+  const diffMs = Date.now() - new Date(date).getTime();
+  if (diffMs < 0 || Number.isNaN(diffMs)) return '—';
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return formatDate(date);
+}
+
 export function formatNumber(n: number, decimals = 0): string {
   return new Intl.NumberFormat('en-AU', {
     minimumFractionDigits: decimals,

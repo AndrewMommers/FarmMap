@@ -14,7 +14,11 @@ export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
       activeFarmId: 'farm-1',
-      sidebarOpen: true,
+      // Starts open on desktop (matches the lg breakpoint used throughout the
+      // layout) and closed on phones/tablets, where an open sidebar is a
+      // full-width drawer with a backdrop — not something a first-time mobile
+      // visitor should land on. Persisted after that, per device.
+      sidebarOpen: typeof window === 'undefined' || window.innerWidth >= 1024,
       demoMode: false,
       setActiveFarm: (id) => set({ activeFarmId: id }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),

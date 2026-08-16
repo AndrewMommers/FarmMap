@@ -1,32 +1,232 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useFarmData } from '../hooks/useFarmData';
+import { useIntegrations } from '../hooks/useIntegrations';
+import { useDevices } from '../hooks/useDevices';
 import { useDataStore } from '../store/dataStore';
 import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
-import { formatDate, getInitials } from '../lib/utils';
+import { formatDate, getInitials, timeAgo } from '../lib/utils';
+import { findContainingPaddock, formatCoords } from '../lib/geo';
 import toast from 'react-hot-toast';
-import { Plus, Settings, Users, Bell, Globe, Database, Shield } from 'lucide-react';
+import {
+  Plus, Settings, Users, Bell, Globe, Database, Shield, Tractor, RefreshCw, Unplug,
+  Landmark, Zap, CircleUser, Smartphone, RotateCcw, Trash2, MapPin, LogIn, LogOut as LogOutIcon,
+} from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
 import type { FarmType, State } from '../types';
 
 const TABS = [
   { id: 'general',      label: 'General',        icon: <Settings className="w-4 h-4" /> },
+  { id: 'profile',      label: 'My Profile',      icon: <CircleUser className="w-4 h-4" /> },
   { id: 'users',        label: 'Users & Access',  icon: <Users className="w-4 h-4" /> },
   { id: 'alerts',       label: 'Notifications',   icon: <Bell className="w-4 h-4" /> },
   { id: 'integrations', label: 'Integrations',    icon: <Globe className="w-4 h-4" /> },
+  { id: 'devices',      label: 'Devices',         icon: <Smartphone className="w-4 h-4" /> },
   { id: 'data',         label: 'Data & Backup',   icon: <Database className="w-4 h-4" /> },
   { id: 'security',     label: 'Security',        icon: <Shield className="w-4 h-4" /> },
 ];
 
 const FARM_TYPES: FarmType[] = ['mixed', 'livestock', 'cropping', 'dairy', 'horticulture', 'vineyard', 'poultry', 'aquaculture', 'sugar', 'cotton'];
 const STATES: State[] = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
+const AVATAR_EMOJIS = ['🧑‍🌾', '👩‍🌾', '🧑‍💼', '👨‍🔧', '👩‍🔧', '🚜', '🐑', '🐄', '🌾', '😀', '😎', '🤠'];
 
 export function SettingsPage() {
-  const { users, farm } = useFarmData();
+  const { users, farm, paddocks, geofenceEvents } = useFarmData();
   const updateFarm = useDataStore((s) => s.updateFarm);
-  const { activeFarmId } = useAppStore();
+  const updateUser = useDataStore((s) => s.updateUser);
+  const { activeFarmId, demoMode } = useAppStore();
+  const { user: authUser } = useAuthStore();
   const [tab, setTab] = useState('general');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Deep-link to a specific tab, e.g. the Header profile menu's
+  // "My Profile" link going to /settings?tab=profile ─────────────────────────
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab && TABS.some((t) => t.id === requestedTab)) {
+      setTab(requestedTab);
+      setSearchParams((p) => { p.delete('tab'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── OAuth redirect landing (John Deere, Xero) ─────────────────────────────
+  // The *-oauth-callback Edge Functions send the browser back here with these params.
+  const INTEGRATION_LABELS: Record<string, string> = { john_deere: 'John Deere', xero: 'Xero' };
+  useEffect(() => {
+    const integration = searchParams.get('integration');
+    const status = searchParams.get('status');
+    if (integration && integration in INTEGRATION_LABELS) {
+      setTab('integrations');
+      const label = INTEGRATION_LABELS[integration];
+      if (status === 'connected') toast.success(`${label} connected!`);
+      else if (status === 'error') toast.error(searchParams.get('message') ?? `${label} connection failed`);
+      setSearchParams((p) => { p.delete('integration'); p.delete('status'); p.delete('message'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Equipment/finance integrations ────────────────────────────────────────
+  const {
+    johnDeere, loading: integrationsLoading, connectJohnDeere, syncJohnDeere, disconnectJohnDeere,
+    xero, connectXero, syncXero, disconnectXero,
+    zepto, connectZepto, syncZepto, disconnectZepto,
+  } = useIntegrations();
+  const [jdBusy, setJdBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
+  const [xeroBusy, setXeroBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
+  const [zeptoBusy, setZeptoBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
+  const [showZeptoForm, setShowZeptoForm] = useState(false);
+  const [zeptoApiKey, setZeptoApiKey] = useState('');
+
+  const handleConnectJohnDeere = async () => {
+    setJdBusy('connect');
+    try { await connectJohnDeere(); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Could not connect to John Deere'); setJdBusy(null); }
+  };
+  const handleSyncJohnDeere = async () => {
+    setJdBusy('sync');
+    try {
+      const res = await syncJohnDeere();
+      toast.success(`Synced ${res.machinesSynced ?? 0} machine${res.machinesSynced === 1 ? '' : 's'} and ${res.boundariesSynced ?? 0} field boundar${res.boundariesSynced === 1 ? 'y' : 'ies'}`);
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Sync failed'); }
+    finally { setJdBusy(null); }
+  };
+  const handleDisconnectJohnDeere = async () => {
+    if (!window.confirm('Disconnect John Deere? Equipment already synced will stay in FarmMap, but stop updating.')) return;
+    setJdBusy('disconnect');
+    try { await disconnectJohnDeere(); toast.success('John Deere disconnected'); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Disconnect failed'); }
+    finally { setJdBusy(null); }
+  };
+
+  const handleConnectXero = async () => {
+    setXeroBusy('connect');
+    try { await connectXero(); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Could not connect to Xero'); setXeroBusy(null); }
+  };
+  const handleSyncXero = async () => {
+    setXeroBusy('sync');
+    try {
+      const res = await syncXero();
+      toast.success(`Synced ${res.transactionsSynced ?? 0} transaction${res.transactionsSynced === 1 ? '' : 's'} from Xero`);
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Sync failed'); }
+    finally { setXeroBusy(null); }
+  };
+  const handleDisconnectXero = async () => {
+    if (!window.confirm('Disconnect Xero? Transactions already synced will stay in FarmMap, but stop updating.')) return;
+    setXeroBusy('disconnect');
+    try { await disconnectXero(); toast.success('Xero disconnected'); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Disconnect failed'); }
+    finally { setXeroBusy(null); }
+  };
+
+  const handleConnectZepto = async () => {
+    if (!zeptoApiKey.trim()) { toast.error('Enter your Zepto API key'); return; }
+    setZeptoBusy('connect');
+    try {
+      const res = await connectZepto(zeptoApiKey.trim());
+      toast.success(`Zepto connected${res.merchantName ? ` as ${res.merchantName}` : ''}!`);
+      setShowZeptoForm(false);
+      setZeptoApiKey('');
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not connect to Zepto'); }
+    finally { setZeptoBusy(null); }
+  };
+  const handleSyncZepto = async () => {
+    setZeptoBusy('sync');
+    try {
+      const res = await syncZepto();
+      toast.success(`Synced ${res.transactionsSynced ?? 0} payment${res.transactionsSynced === 1 ? '' : 's'} from Zepto`);
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Sync failed'); }
+    finally { setZeptoBusy(null); }
+  };
+  const handleDisconnectZepto = async () => {
+    if (!window.confirm('Disconnect Zepto? Payments already synced will stay in FarmMap, but stop updating.')) return;
+    setZeptoBusy('disconnect');
+    try { await disconnectZepto(); toast.success('Zepto disconnected'); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Disconnect failed'); }
+    finally { setZeptoBusy(null); }
+  };
+
+  // ── My Profile ─────────────────────────────────────────────────────────────
+  const myProfile = demoMode ? users[0] : users.find((u) => u.userId === authUser?.id);
+  const [profileForm, setProfileForm] = useState({
+    name: myProfile?.name ?? (authUser?.user_metadata?.name as string | undefined) ?? '',
+    phone: myProfile?.phone ?? '',
+    avatar: myProfile?.avatar ?? '',
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const setProfileField = (k: keyof typeof profileForm, v: string) => setProfileForm((f) => ({ ...f, [k]: v }));
+
+  // Sync the form once the auto-provisioned profile row actually arrives.
+  useEffect(() => {
+    if (myProfile) setProfileForm({ name: myProfile.name, phone: myProfile.phone ?? '', avatar: myProfile.avatar ?? '' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myProfile?.id]);
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.name.trim()) { toast.error('Name is required'); return; }
+    setProfileSaving(true);
+    try {
+      if (myProfile) {
+        await updateUser(myProfile.id, {
+          name: profileForm.name.trim(),
+          phone: profileForm.phone.trim() || undefined,
+          avatar: profileForm.avatar || undefined,
+        });
+      }
+      const { error } = await supabase.auth.updateUser({ data: { name: profileForm.name.trim() } });
+      if (error) throw error;
+      toast.success('Profile saved!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  // ── Devices (Tractor Mode) ────────────────────────────────────────────────
+  const {
+    devices, paired, thisDevice,
+    registerThisDevice, forgetThisDevice, assignDevice, revokeDevice, reactivateDevice, removeDevice,
+  } = useDevices();
+  const [showRegisterDevice, setShowRegisterDevice] = useState(false);
+  const [deviceName, setDeviceName] = useState('');
+  const [deviceAssignee, setDeviceAssignee] = useState('');
+  const [deviceSaving, setDeviceSaving] = useState(false);
+
+  const handleRegisterDevice = async () => {
+    if (!deviceName.trim()) { toast.error('Give this device a name'); return; }
+    setDeviceSaving(true);
+    try {
+      await registerThisDevice(deviceName.trim(), deviceAssignee || undefined);
+      toast.success(`Registered "${deviceName.trim()}" — this browser will launch straight into Tractor Mode from now on.`);
+      setShowRegisterDevice(false);
+      setDeviceName('');
+      setDeviceAssignee('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not register this device');
+    } finally {
+      setDeviceSaving(false);
+    }
+  };
+  const handleForgetDevice = () => {
+    forgetThisDevice();
+    toast.success('This browser is no longer registered as a device.');
+  };
+  const handleRevokeDevice = async (id: string, name: string) => {
+    if (!window.confirm(`Revoke "${name}"? It will be signed out next time it checks in.`)) return;
+    try { await revokeDevice(id); toast.success(`"${name}" revoked`); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to revoke device'); }
+  };
+  const handleDeleteDevice = async (id: string, name: string) => {
+    if (!window.confirm(`Remove "${name}" from the device list? This cannot be undone.`)) return;
+    try { await removeDevice(id); toast.success(`"${name}" removed`); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to remove device'); }
+  };
 
   // ── General / Farm details ────────────────────────────────────────────────
   const [farmForm, setFarmForm] = useState({
@@ -153,6 +353,73 @@ export function SettingsPage() {
             </div>
           )}
 
+          {tab === 'profile' && (
+            <div className="card space-y-6">
+              <h2 className="section-title">My Profile</h2>
+
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-farm-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                  {profileForm.avatar || getInitials(profileForm.name || authUser?.email || 'Me')}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{profileForm.name || 'Your name'}</p>
+                  <p className="text-xs text-gray-400 truncate">{demoMode ? 'demo@farmmap.app' : authUser?.email}</p>
+                  {myProfile && <StatusBadge status={myProfile.role} label={myProfile.role} />}
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Avatar</label>
+                <div className="flex flex-wrap gap-2">
+                  {AVATAR_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => setProfileField('avatar', e)}
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl border-2 transition-colors ${profileForm.avatar === e ? 'border-farm-600 bg-farm-50 dark:bg-farm-900/30' : 'border-gray-200 dark:border-gray-700 hover:border-farm-300'}`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    title="Use initials instead"
+                    onClick={() => setProfileField('avatar', '')}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold text-gray-500 border-2 transition-colors ${!profileForm.avatar ? 'border-farm-600 bg-farm-50 dark:bg-farm-900/30' : 'border-gray-200 dark:border-gray-700 hover:border-farm-300'}`}
+                  >
+                    {getInitials(profileForm.name || 'Me')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Full Name</label>
+                  <input className="input" value={profileForm.name} onChange={(e) => setProfileField('name', e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">Phone</label>
+                  <input className="input" value={profileForm.phone} onChange={(e) => setProfileField('phone', e.target.value)} placeholder="04xx xxx xxx" />
+                </div>
+                <div>
+                  <label className="label">Email</label>
+                  <input className="input bg-gray-50 dark:bg-gray-800 text-gray-400" value={demoMode ? 'demo@farmmap.app' : authUser?.email ?? ''} disabled />
+                </div>
+                <div>
+                  <label className="label">Role</label>
+                  <input className="input bg-gray-50 dark:bg-gray-800 text-gray-400 capitalize" value={myProfile?.role ?? 'owner'} disabled />
+                </div>
+              </div>
+
+              <div>
+                <button className="btn-primary" onClick={handleSaveProfile} disabled={demoMode || profileSaving}>
+                  {profileSaving ? 'Saving…' : 'Save Profile'}
+                </button>
+                {demoMode && <p className="text-xs text-gray-400 mt-2">Profile changes aren't saved in demo mode.</p>}
+              </div>
+            </div>
+          )}
+
           {tab === 'users' && (
             <div className="card space-y-4">
               <div className="flex items-center justify-between">
@@ -163,17 +430,21 @@ export function SettingsPage() {
               </div>
               <div className="space-y-3">
                 {users.map(u => (
-                  <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-farm-50/50">
-                    <div className="w-10 h-10 rounded-full bg-farm-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                      {getInitials(u.name)}
+                  <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-farm-50/50">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-farm-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {getInitials(u.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{u.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{u.email} · Last login: {formatDate(u.lastLogin)}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{u.name}</p>
-                      <p className="text-xs text-gray-400">{u.email} · Last login: {formatDate(u.lastLogin)}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <StatusBadge status={u.role} label={u.role} />
+                      <StatusBadge status={u.active ? 'active' : 'locked'} label={u.active ? 'Active' : 'Inactive'} />
+                      <button className="btn-secondary text-xs py-1 px-2" onClick={() => toast('Edit user – coming soon')}>Edit</button>
                     </div>
-                    <StatusBadge status={u.role} label={u.role} />
-                    <StatusBadge status={u.active ? 'active' : 'locked'} label={u.active ? 'Active' : 'Inactive'} />
-                    <button className="btn-secondary text-xs py-1 px-2" onClick={() => toast('Edit user – coming soon')}>Edit</button>
                   </div>
                 ))}
                 {users.length === 0 && (
@@ -209,23 +480,297 @@ export function SettingsPage() {
           {tab === 'integrations' && (
             <div className="card space-y-4">
               <h2 className="section-title">Integrations</h2>
+
+              {/* ── John Deere Operations Center ────────────────────────── */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 border border-farm-200 dark:border-farm-800 bg-farm-50/50 dark:bg-farm-900/20 rounded-xl">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-farm-700 flex items-center justify-center flex-shrink-0">
+                    <Tractor className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">John Deere Operations Center</p>
+                    <p className="text-xs text-gray-400">
+                      {demoMode
+                        ? 'Sign in with a real account to connect equipment telematics'
+                        : johnDeere?.status === 'connected'
+                          ? `Connected${johnDeere.externalOrgName ? ` as ${johnDeere.externalOrgName}` : ''} · Last synced ${formatDate(johnDeere.lastSyncAt) || 'never'}`
+                          : johnDeere?.status === 'error'
+                            ? `Connection error: ${johnDeere.lastError ?? 'unknown error'}`
+                            : 'Sync machine hours, GPS location and field boundaries automatically'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`badge ${
+                    johnDeere?.status === 'connected' ? 'bg-farm-100 text-farm-700'
+                    : johnDeere?.status === 'error' ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {demoMode ? 'unavailable in demo' : johnDeere?.status ?? 'disconnected'}
+                  </span>
+                  {!demoMode && johnDeere?.status === 'connected' ? (
+                    <>
+                      <button className="btn-secondary text-xs py-1.5" disabled={jdBusy !== null} onClick={handleSyncJohnDeere}>
+                        <RefreshCw className={`w-3.5 h-3.5 ${jdBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
+                      </button>
+                      <button className="btn-secondary text-xs py-1.5 text-red-600 hover:bg-red-50" disabled={jdBusy !== null} onClick={handleDisconnectJohnDeere}>
+                        <Unplug className="w-3.5 h-3.5" /> Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn-secondary text-xs py-1.5"
+                      disabled={demoMode || integrationsLoading || jdBusy !== null}
+                      onClick={handleConnectJohnDeere}
+                    >
+                      {jdBusy === 'connect' ? 'Connecting…' : 'Connect'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 -mt-2">
+                Requires a one-time setup by the farm owner — see <code className="font-mono">docs/integrations/john-deere.md</code>.
+              </p>
+
+              {/* ── Xero Accounting ─────────────────────────────────────── */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 border border-farm-200 dark:border-farm-800 bg-farm-50/50 dark:bg-farm-900/20 rounded-xl">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-farm-700 flex items-center justify-center flex-shrink-0">
+                    <Landmark className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">Xero Accounting</p>
+                    <p className="text-xs text-gray-400">
+                      {demoMode
+                        ? 'Sign in with a real account to connect Xero'
+                        : xero?.status === 'connected'
+                          ? `Connected${xero.externalOrgName ? ` as ${xero.externalOrgName}` : ''} · Last synced ${formatDate(xero.lastSyncAt) || 'never'}`
+                          : xero?.status === 'error'
+                            ? `Connection error: ${xero.lastError ?? 'unknown error'}`
+                            : 'Sync bank transactions and invoices with Xero'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`badge ${
+                    xero?.status === 'connected' ? 'bg-farm-100 text-farm-700'
+                    : xero?.status === 'error' ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {demoMode ? 'unavailable in demo' : xero?.status ?? 'disconnected'}
+                  </span>
+                  {!demoMode && xero?.status === 'connected' ? (
+                    <>
+                      <button className="btn-secondary text-xs py-1.5" disabled={xeroBusy !== null} onClick={handleSyncXero}>
+                        <RefreshCw className={`w-3.5 h-3.5 ${xeroBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
+                      </button>
+                      <button className="btn-secondary text-xs py-1.5 text-red-600 hover:bg-red-50" disabled={xeroBusy !== null} onClick={handleDisconnectXero}>
+                        <Unplug className="w-3.5 h-3.5" /> Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn-secondary text-xs py-1.5"
+                      disabled={demoMode || integrationsLoading || xeroBusy !== null}
+                      onClick={handleConnectXero}
+                    >
+                      {xeroBusy === 'connect' ? 'Connecting…' : 'Connect'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 -mt-2">
+                Requires a one-time setup by the farm owner — see <code className="font-mono">docs/integrations/xero.md</code>.
+              </p>
+
+              {/* ── Zepto Payments ──────────────────────────────────────── */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 border border-farm-200 dark:border-farm-800 bg-farm-50/50 dark:bg-farm-900/20 rounded-xl">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-farm-700 flex items-center justify-center flex-shrink-0">
+                    <Zap className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">Zepto Payments</p>
+                    <p className="text-xs text-gray-400">
+                      {demoMode
+                        ? 'Sign in with a real account to connect Zepto'
+                        : zepto?.status === 'connected'
+                          ? `Connected${zepto.externalOrgName ? ` as ${zepto.externalOrgName}` : ''} · Last synced ${formatDate(zepto.lastSyncAt) || 'never'}`
+                          : zepto?.status === 'error'
+                            ? `Connection error: ${zepto.lastError ?? 'unknown error'}`
+                            : 'Sync real-time bank payments (PayTo) as transactions'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`badge ${
+                    zepto?.status === 'connected' ? 'bg-farm-100 text-farm-700'
+                    : zepto?.status === 'error' ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {demoMode ? 'unavailable in demo' : zepto?.status ?? 'disconnected'}
+                  </span>
+                  {!demoMode && zepto?.status === 'connected' ? (
+                    <>
+                      <button className="btn-secondary text-xs py-1.5" disabled={zeptoBusy !== null} onClick={handleSyncZepto}>
+                        <RefreshCw className={`w-3.5 h-3.5 ${zeptoBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
+                      </button>
+                      <button className="btn-secondary text-xs py-1.5 text-red-600 hover:bg-red-50" disabled={zeptoBusy !== null} onClick={handleDisconnectZepto}>
+                        <Unplug className="w-3.5 h-3.5" /> Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn-secondary text-xs py-1.5"
+                      disabled={demoMode || integrationsLoading}
+                      onClick={() => setShowZeptoForm(true)}
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 -mt-2">
+                Uses an API key from your Zepto merchant dashboard, not a sign-in redirect — see <code className="font-mono">docs/integrations/zepto.md</code>.
+              </p>
+
               {[
                 { name: 'BOM Weather API', desc: 'Bureau of Meteorology live weather data', status: 'disconnected' },
                 { name: 'NLIS Database', desc: 'National Livestock Identification System', status: 'disconnected' },
-                { name: 'Xero Accounting', desc: 'Sync transactions with Xero', status: 'disconnected' },
                 { name: 'MYOB AccountRight', desc: 'Sync transactions with MYOB', status: 'disconnected' },
                 { name: 'AgriWebbTM', desc: 'Livestock management platform sync', status: 'disconnected' },
                 { name: 'GrainCorp Portal', desc: 'Grain receival and prices', status: 'disconnected' },
               ].map(i => (
-                <div key={i.name} className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl">
-                  <div className="flex-1">
+                <div key={i.name} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 border border-gray-100 rounded-xl">
+                  <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{i.name}</p>
                     <p className="text-xs text-gray-400">{i.desc}</p>
                   </div>
-                  <span className="badge bg-gray-100 text-gray-500">{i.status}</span>
-                  <button className="btn-secondary text-xs py-1.5" onClick={() => toast(`Connect ${i.name} – coming in full release`)}>Connect</button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="badge bg-gray-100 text-gray-500">{i.status}</span>
+                    <button className="btn-secondary text-xs py-1.5" onClick={() => toast(`Connect ${i.name} – coming in full release`)}>Connect</button>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {tab === 'devices' && (
+            <div className="card space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h2 className="section-title">Registered Devices</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Tablets and phones set up for Tractor Mode in the cab.</p>
+                </div>
+                <button className="btn-primary text-xs" onClick={() => setShowRegisterDevice(true)}>
+                  <Plus className="w-4 h-4" /> Register This Device
+                </button>
+              </div>
+
+              {paired && (thisDevice || demoMode) && (
+                <div className="flex items-center gap-2 text-xs text-farm-700 dark:text-farm-300 bg-farm-50 dark:bg-farm-900/20 border border-farm-200 dark:border-farm-800 rounded-xl px-3 py-2 flex-wrap">
+                  <Smartphone className="w-4 h-4 flex-shrink-0" />
+                  This device is registered as <strong>&ldquo;{paired.name}&rdquo;</strong>.
+                  <button className="ml-auto underline font-medium" onClick={handleForgetDevice}>Forget this device</button>
+                </div>
+              )}
+              {paired && !thisDevice && !demoMode && (
+                <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 flex-wrap">
+                  This browser was paired as &ldquo;{paired.name}&rdquo; but that record no longer exists.
+                  <button className="ml-auto underline font-medium" onClick={handleForgetDevice}>Forget it</button>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {devices.map((d) => {
+                  const assignedUser = users.find((u) => u.id === d.assignedUserId);
+                  return (
+                    <div key={d.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border ${d.status === 'revoked' ? 'border-red-100 dark:border-red-900 bg-red-50/40 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800'}`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${d.status === 'revoked' ? 'bg-red-100 text-red-600' : 'bg-farm-100 text-farm-700'}`}>
+                          <Smartphone className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 flex items-center gap-1.5 flex-wrap">
+                            {d.name}
+                            {paired?.deviceId === d.id && <span className="badge bg-sky-100 text-sky-700 text-[10px]">this device</span>}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {assignedUser ? `Usually ${assignedUser.name}` : 'Unassigned'} · Last active {formatDate(d.lastActiveAt) || 'never'}
+                          </p>
+                          {d.lastLocation && (
+                            <p className="text-xs text-sky-600 dark:text-sky-400 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              {(() => {
+                                const p = findContainingPaddock(d.lastLocation, paddocks);
+                                return p ? `In ${p.name}` : `Near ${formatCoords(d.lastLocation)}`;
+                              })()}
+                              {' · '}{timeAgo(d.lastLocationAt)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select
+                          className="input text-xs py-1 w-36"
+                          value={d.assignedUserId ?? ''}
+                          onChange={(e) => assignDevice(d.id, e.target.value || undefined)}
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                        <StatusBadge status={d.status === 'active' ? 'active' : 'locked'} label={d.status === 'active' ? 'Active' : 'Revoked'} />
+                        {d.status === 'active' ? (
+                          <button className="btn-secondary text-xs py-1 px-2 text-red-600 hover:bg-red-50" onClick={() => handleRevokeDevice(d.id, d.name)}>
+                            <Unplug className="w-3.5 h-3.5" /> Revoke
+                          </button>
+                        ) : (
+                          <button className="btn-secondary text-xs py-1 px-2" onClick={() => reactivateDevice(d.id)}>
+                            <RotateCcw className="w-3.5 h-3.5" /> Reactivate
+                          </button>
+                        )}
+                        <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remove device" onClick={() => handleDeleteDevice(d.id, d.name)}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {devices.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">No devices registered yet.</p>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Revoking a device signs it out next time it checks in — see <code className="font-mono">docs/DEVICES.md</code>.
+              </p>
+
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                <h3 className="font-bold text-sm text-gray-900 dark:text-gray-100 mb-1">Recent Geofence Activity</h3>
+                <p className="text-xs text-gray-400 mb-3">
+                  Logged automatically when a device's GPS position crosses a paddock boundary — see <code className="font-mono">docs/GEOFENCING.md</code>.
+                </p>
+                <div className="space-y-1.5">
+                  {geofenceEvents.slice(0, 8).map((ev) => {
+                    const device = devices.find((d) => d.id === ev.deviceId);
+                    const paddock = paddocks.find((p) => p.id === ev.paddockId);
+                    return (
+                      <div key={ev.id} className="flex items-center gap-2.5 text-sm py-1.5">
+                        {ev.type === 'enter'
+                          ? <LogIn className="w-3.5 h-3.5 text-farm-600 flex-shrink-0" />
+                          : <LogOutIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{device?.name ?? 'Unknown device'}</span>
+                        <span className="text-gray-400">{ev.type === 'enter' ? 'entered' : 'left'}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{paddock?.name ?? 'a paddock'}</span>
+                        <span className="text-gray-400 ml-auto flex-shrink-0">{timeAgo(ev.occurredAt)}</span>
+                      </div>
+                    );
+                  })}
+                  {geofenceEvents.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-3">No geofence crossings logged yet.</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -288,6 +833,73 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      <Modal
+        open={showZeptoForm}
+        onClose={() => setShowZeptoForm(false)}
+        title="Connect Zepto"
+        size="sm"
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setShowZeptoForm(false)}>Cancel</button>
+            <button className="btn-primary" onClick={handleConnectZepto} disabled={zeptoBusy !== null}>
+              {zeptoBusy === 'connect' ? 'Connecting…' : 'Connect'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Paste the API key from your Zepto merchant dashboard. It's stored server-side and never
+            visible in FarmMap after this.
+          </p>
+          <div>
+            <label className="label">Zepto API Key</label>
+            <input
+              className="input font-mono text-sm"
+              type="password"
+              placeholder="zpk_live_…"
+              value={zeptoApiKey}
+              onChange={(e) => setZeptoApiKey(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showRegisterDevice}
+        onClose={() => setShowRegisterDevice(false)}
+        title="Register This Device"
+        size="sm"
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setShowRegisterDevice(false)}>Cancel</button>
+            <button className="btn-primary" onClick={handleRegisterDevice} disabled={deviceSaving}>
+              {deviceSaving ? 'Registering…' : 'Register'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            This registers the device you're using right now — do this from the tablet or phone
+            that's actually mounted in the cab. It'll launch straight into Tractor Mode from now on,
+            and can be renamed or revoked from here on any device.
+          </p>
+          <div>
+            <label className="label">Device Name</label>
+            <input className="input" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="e.g. 8R Cab Tablet" autoFocus />
+          </div>
+          <div>
+            <label className="label">Usually used by (optional)</label>
+            <select className="input" value={deviceAssignee} onChange={(e) => setDeviceAssignee(e.target.value)}>
+              <option value="">Unassigned</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

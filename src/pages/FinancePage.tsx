@@ -14,7 +14,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { Plus, TrendingUp, TrendingDown, DollarSign, Trash2, Pencil } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, DollarSign, Trash2, Pencil, Landmark, Zap } from 'lucide-react';
 import type { TransactionCategory, Transaction } from '../types';
 
 const CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -118,7 +118,7 @@ export function FinancePage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="YTD Income" value={formatCurrency(income)} icon={<TrendingUp className="w-5 h-5" />} color="green" trend={{ value: 12, label: 'vs last year' }} />
         <StatCard title="YTD Expenses" value={formatCurrency(expense)} icon={<TrendingDown className="w-5 h-5" />} color="red" />
         <StatCard title="Net Position" value={formatCurrency(income - expense)} icon={<DollarSign className="w-5 h-5" />} color={income > expense ? 'green' : 'red'} />
@@ -170,7 +170,17 @@ export function FinancePage() {
               {filtered.map(t => (
                 <tr key={t.id} className="hover:bg-farm-50/50 transition-colors">
                   <td className="table-cell whitespace-nowrap">{formatDate(t.date)}</td>
-                  <td className="table-cell font-medium text-gray-900 dark:text-gray-100 max-w-xs">{t.description}</td>
+                  <td className="table-cell font-medium text-gray-900 dark:text-gray-100 max-w-xs">
+                    {t.description}
+                    {t.externalProvider === 'xero' && (
+                      <span className="badge bg-farm-100 text-farm-700 ml-2 gap-1"><Landmark className="w-3 h-3" /> Xero</span>
+                    )}
+                    {t.externalProvider === 'zepto' && (
+                      <span className={`badge ml-2 gap-1 ${t.paymentStatus === 'pending' ? 'bg-amber-100 text-amber-700' : t.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' : 'bg-farm-100 text-farm-700'}`}>
+                        <Zap className="w-3 h-3" /> Zepto{t.paymentStatus && t.paymentStatus !== 'completed' ? ` · ${t.paymentStatus}` : ''}
+                      </span>
+                    )}
+                  </td>
                   <td className="table-cell text-xs text-gray-500">{CATEGORY_LABELS[t.category] ?? t.category}</td>
                   <td className="table-cell">
                     <span className={`badge ${t.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>{t.type}</span>

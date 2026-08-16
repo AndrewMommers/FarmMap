@@ -12,7 +12,7 @@ import { formatDate, formatCurrency } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import { downloadCSV, downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
-import { Plus, Wrench, AlertTriangle, Trash2, Pencil } from 'lucide-react';
+import { Plus, Wrench, AlertTriangle, Trash2, Pencil, Tractor } from 'lucide-react';
 import type { Equipment } from '../types';
 
 export function EquipmentPage() {
@@ -104,7 +104,7 @@ export function EquipmentPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Assets" value={equipment.length} icon={<Wrench className="w-5 h-5" />} color="blue" />
         <StatCard title="Operational" value={operational} icon={<Wrench className="w-5 h-5" />} color="green" />
         <StatCard title="Needs Attention" value={inMaintenance} icon={<AlertTriangle className="w-5 h-5" />} color={inMaintenance > 0 ? 'red' : 'green'} />
@@ -150,11 +150,20 @@ export function EquipmentPage() {
                 </div>
                 <StatusBadge status={e.status} />
               </div>
+              {e.externalProvider === 'john_deere' && (
+                <span className="badge bg-farm-100 text-farm-700 gap-1 mb-2">
+                  <Tractor className="w-3 h-3" /> Synced from John Deere
+                  {e.lastTelemetryAt && <span className="text-farm-500 font-normal">· {formatDate(e.lastTelemetryAt)}</span>}
+                </span>
+              )}
               <div className="space-y-1.5 text-sm">
                 {e.serialNumber && <div className="flex justify-between"><span className="text-gray-500">Serial</span><span className="font-mono text-xs">{e.serialNumber}</span></div>}
                 <div className="flex justify-between"><span className="text-gray-500">Last service</span><span>{formatDate(e.lastServiceDate)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Next service</span><span className={e.nextServiceDate && new Date(e.nextServiceDate) < new Date() ? 'text-red-600 font-semibold' : ''}>{formatDate(e.nextServiceDate)}</span></div>
                 {e.hoursOrKm && <div className="flex justify-between"><span className="text-gray-500">Hours / km</span><span className="font-medium">{e.hoursOrKm.toLocaleString()}</span></div>}
+                {e.engineHoursSynced != null && (
+                  <div className="flex justify-between"><span className="text-gray-500">Engine hours (synced)</span><span className="font-medium">{e.engineHoursSynced.toLocaleString()}</span></div>
+                )}
                 {e.purchasePriceAUD && <div className="flex justify-between"><span className="text-gray-500">Purchase price</span><span>{formatCurrency(e.purchasePriceAUD)}</span></div>}
               </div>
               {e.notes && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1">{e.notes}</p>}

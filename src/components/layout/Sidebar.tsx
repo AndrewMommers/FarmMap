@@ -67,10 +67,16 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          'fixed top-0 left-0 h-full z-30 flex flex-col',
+          'fixed top-0 left-0 h-full z-30 flex flex-col w-60',
           'bg-farm-900 text-white transition-all duration-300 ease-in-out',
-          sidebarOpen ? 'w-60' : 'w-16',
-          'lg:relative lg:z-auto'
+          // Below lg: slide fully off-canvas when closed instead of shrinking to
+          // an icon rail — a "collapsed" fixed-position rail would otherwise sit
+          // permanently on top of page content (BottomNav is the mobile nav).
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          // lg+: always in-flow and visible; sidebarOpen instead toggles between
+          // the full-width sidebar and a collapsed icon rail.
+          'lg:relative lg:z-auto lg:translate-x-0',
+          sidebarOpen ? 'lg:w-60' : 'lg:w-16'
         )}
       >
         {/* Logo / farm name */}

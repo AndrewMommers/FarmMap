@@ -31,13 +31,13 @@ export function WeatherPage() {
       />
 
       {weatherLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="card animate-pulse h-24 bg-gray-50 dark:bg-gray-800" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="Today's Max" value={today ? `${today.tempMaxC}°C` : '—'} subtitle={today ? `Min: ${today.tempMinC}°C` : ''} icon={<Thermometer className="w-5 h-5" />} color="amber" />
           <StatCard title="Today's Rainfall" value={today ? `${today.rainfallMm} mm` : '—'} icon={<Droplets className="w-5 h-5" />} color="blue" />
           <StatCard title="3-Month Rainfall" value={`${ytdRainfall.toFixed(1)} mm`} subtitle={`${rainfallSummary.length} months`} icon={<Cloud className="w-5 h-5" />} color="green" />

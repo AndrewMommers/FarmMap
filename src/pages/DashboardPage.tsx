@@ -55,7 +55,7 @@ export function DashboardPage() {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Hectares"
           value={`${totalHectares.toLocaleString()} ha`}

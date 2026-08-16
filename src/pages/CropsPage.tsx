@@ -40,7 +40,7 @@ export function CropsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Active Crops" value={activeCrops.length} icon={<Sprout className="w-5 h-5" />} color="green" />
         <StatCard title="Total Planted" value={`${crops.filter(c => c.status !== 'failed').reduce((s, c) => {
           const p = paddocks.find(p => p.id === c.paddockId);

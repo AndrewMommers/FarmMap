@@ -27,7 +27,7 @@ export function StatCard({ title, value, subtitle, icon, trend, color = 'green',
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-500 dark:text-gray-400 font-medium truncate">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5 leading-none">{value}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5 leading-none truncate" title={String(value)}>{value}</p>
         {subtitle && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{subtitle}</p>}
         {trend && (
           <p className={cn('text-xs font-medium mt-1', c.trend)}>

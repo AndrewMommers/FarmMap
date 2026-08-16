@@ -1,8 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Menu, Bell, Sun, Cloud, CloudRain, CloudDrizzle, CloudLightning, CloudFog,
   Snowflake, Tractor, Moon, LogOut, FlaskConical, Wind,
   AlertCircle, AlertTriangle, Info, Package, Wrench, CheckSquare,
+  CircleUser, Settings as SettingsIcon, ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useTractorStore } from '../../store/tractorStore';
@@ -13,6 +15,7 @@ import { useFarmData } from '../../hooks/useFarmData';
 import { useWeather, wmoLabel, wmoCategory } from '../../hooks/useWeather';
 import { useNotifications } from '../../hooks/useNotifications';
 import { clearWeatherCache } from '../../hooks/useWeatherHistory';
+import { getInitials } from '../../lib/utils';
 import type { FarmNotification, NotifPriority, NotifType } from '../../hooks/useNotifications';
 import { FarmSwitcher } from './FarmSwitcher';
 
@@ -108,6 +111,72 @@ function NotificationDropdown({
   );
 }
 
+// ─── Profile dropdown ───────────────────────────────────────────────────────
+
+function ProfileDropdown({
+  name, email, role, avatar, demoMode, onSignOut, onClose,
+}: {
+  name: string;
+  email: string;
+  role: string;
+  avatar: string;
+  demoMode: boolean;
+  onSignOut: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl z-50 overflow-hidden"
+    >
+      <div className="px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-base font-bold flex-shrink-0 ${demoMode ? 'bg-amber-500' : 'bg-farm-700'}`}>
+          {avatar}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{name}</p>
+          <p className="text-xs text-gray-400 truncate">{email}</p>
+          <p className="text-xs text-farm-600 dark:text-farm-400 capitalize">{role}</p>
+        </div>
+      </div>
+      <div className="py-1.5">
+        <Link
+          to="/settings?tab=profile"
+          onClick={onClose}
+          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-farm-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <CircleUser className="w-4 h-4 text-gray-400" /> My Profile
+        </Link>
+        <Link
+          to="/settings"
+          onClick={onClose}
+          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-farm-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <SettingsIcon className="w-4 h-4 text-gray-400" /> Settings
+        </Link>
+      </div>
+      <div className="py-1.5 border-t border-gray-100 dark:border-gray-800">
+        <button
+          onClick={() => { onClose(); onSignOut(); }}
+          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+        >
+          <LogOut className="w-4 h-4" /> {demoMode ? 'Exit Demo' : 'Sign Out'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 export function Header() {
@@ -117,12 +186,13 @@ export function Header() {
   const { user, signOut } = useAuthStore();
   const clearData = useDataStore((s) => s.clearData);
 
-  const { farm, paddocks } = useFarmData();
+  const { farm, paddocks, users } = useFarmData();
   const firstCoords = paddocks.find((p) => p.coordinates)?.coordinates;
   const { weather, loading: weatherLoading } = useWeather(farm?.address, firstCoords);
   const { alerts, count: notifCount } = useNotifications();
 
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const handleSignOut = () => {
     clearWeatherCache(); // purge cached weather so next farm/user fetches fresh data
@@ -134,13 +204,16 @@ export function Header() {
     }
   };
 
-  const initials = demoMode
-    ? 'DM'
-    : ((user?.user_metadata?.name as string | undefined)
-        ?.split(' ')
-        .map((p: string) => p[0])
-        .slice(0, 2)
-        .join('') ?? user?.email?.[0]?.toUpperCase() ?? '?');
+  // The signed-in owner's own farm_users row (see dataStore.ensureOwnerProfile) —
+  // this is what Settings → My Profile edits, so the header should reflect it
+  // rather than recomputing initials from the raw auth session every time.
+  const myProfile = demoMode ? users[0] : users.find((u) => u.userId === user?.id);
+  const displayName = demoMode
+    ? (myProfile?.name ?? farm?.owner ?? 'Demo User')
+    : (myProfile?.name || (user?.user_metadata?.name as string | undefined) || user?.email || 'My Account');
+  const displayEmail = demoMode ? 'demo@farmmap.app' : (user?.email ?? '');
+  const displayRole = demoMode ? (myProfile?.role ?? 'owner') : (myProfile?.role ?? 'owner');
+  const avatarContent = myProfile?.avatar || getInitials(displayName);
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-farm-100 dark:border-gray-800 flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-10">
@@ -234,22 +307,34 @@ export function Header() {
         )}
       </div>
 
-      {/* Sign out */}
-      <button
-        onClick={handleSignOut}
-        className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
-        aria-label={demoMode ? 'Exit demo' : 'Sign out'}
-        title={demoMode ? 'Exit demo' : 'Sign out'}
-      >
-        <LogOut className="w-5 h-5" />
-      </button>
-
-      {/* Avatar */}
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold cursor-pointer select-none ${demoMode ? 'bg-amber-500' : 'bg-farm-700'}`}
-        title={demoMode ? 'Demo Mode' : user?.email}
-      >
-        {initials}
+      {/* Profile */}
+      <div className="relative">
+        <button
+          onClick={() => setShowProfile((v) => !v)}
+          className="flex items-center gap-1.5 p-1 pr-2 rounded-xl hover:bg-farm-50 dark:hover:bg-gray-800 transition-colors"
+          aria-label="Open profile menu"
+          aria-haspopup="true"
+          aria-expanded={showProfile}
+        >
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold select-none flex-shrink-0 ${demoMode ? 'bg-amber-500' : 'bg-farm-700'}`}
+            title={displayEmail}
+          >
+            {avatarContent}
+          </div>
+          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showProfile ? 'rotate-180' : ''}`} />
+        </button>
+        {showProfile && (
+          <ProfileDropdown
+            name={displayName}
+            email={displayEmail}
+            role={displayRole}
+            avatar={avatarContent}
+            demoMode={demoMode}
+            onSignOut={handleSignOut}
+            onClose={() => setShowProfile(false)}
+          />
+        )}
       </div>
     </header>
   );

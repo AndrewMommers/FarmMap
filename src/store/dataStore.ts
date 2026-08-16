@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
-  Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task, User,
+  Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task, User, Device, GeofenceEvent,
   TaskStatus, FenceLine, MapFeature, MapFeatureType,
 } from '../types';
 import * as mock from '../data/mockData';
@@ -33,6 +33,8 @@ interface DataStore {
   inventory: InventoryItem[];
   tasks: Task[];
   users: User[];
+  devices: Device[];
+  geofenceEvents: GeofenceEvent[];
   /** True while the initial Supabase data load is running. */
   dataLoading: boolean;
 
@@ -88,6 +90,20 @@ interface DataStore {
   addEquipment: (farmId: string, data: Omit<Equipment, 'id' | 'farmId'>) => Equipment;
   updateEquipment: (id: string, data: Partial<Omit<Equipment, 'id' | 'farmId'>>) => void;
   deleteEquipment: (id: string) => void;
+
+  // ── Users (team directory / profile) ────────────────────────────────────────
+  addUser: (farmId: string, data: Omit<User, 'id' | 'farmId'>) => Promise<User>;
+  updateUser: (id: string, data: Partial<Omit<User, 'id' | 'farmId'>>) => Promise<void>;
+  /** Finds (or creates) the farm_users row linked to this auth user for this farm — used to back "My Profile". */
+  ensureOwnerProfile: (farmId: string, authUserId: string, email: string, name: string) => Promise<User>;
+
+  // ── Devices (Tractor Mode) ───────────────────────────────────────────────────
+  addDevice: (farmId: string, data: Omit<Device, 'id' | 'farmId' | 'createdAt' | 'status'>) => Promise<Device>;
+  updateDevice: (id: string, data: Partial<Omit<Device, 'id' | 'farmId' | 'createdAt'>>) => Promise<void>;
+  deleteDevice: (id: string) => Promise<void>;
+
+  // ── Geofencing ────────────────────────────────────────────────────────────
+  addGeofenceEvent: (farmId: string, data: Omit<GeofenceEvent, 'id' | 'farmId' | 'occurredAt'>) => Promise<GeofenceEvent>;
 }
 
 const EMPTY: Omit<DataStore,
@@ -99,14 +115,16 @@ const EMPTY: Omit<DataStore,
   'addTask' | 'updateTaskStatus' | 'updateTask' | 'deleteTask' |
   'addTransaction' | 'updateTransaction' | 'deleteTransaction' | 'addInventoryItem' |
   'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
-  'addEquipment' | 'updateEquipment' | 'deleteEquipment'
+  'addEquipment' | 'updateEquipment' | 'deleteEquipment' |
+  'addUser' | 'updateUser' | 'ensureOwnerProfile' |
+  'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent'
 > = {
   farms: [], paddocks: [], fenceLines: [], mapFeatures: [], livestockMobs: [], livestock: [], crops: [],
   sprayRecords: [], equipment: [], maintenanceLogs: [], transactions: [],
-  budgets: [], inventory: [], tasks: [], users: [], dataLoading: false,
+  budgets: [], inventory: [], tasks: [], users: [], devices: [], geofenceEvents: [], dataLoading: false,
 };
 
-export const useDataStore = create<DataStore>()((set) => ({
+export const useDataStore = create<DataStore>()((set, get) => ({
   ...EMPTY,
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -125,7 +143,7 @@ export const useDataStore = create<DataStore>()((set) => ({
 
       const [
         paddocksRes, mobsRes, livestockRes, cropsRes, sprayRes,
-        equipRes, txRes, budgetRes, invRes, tasksRes, usersRes,
+        equipRes, txRes, budgetRes, invRes, tasksRes, usersRes, devicesRes, geofenceRes,
       ] = await Promise.all([
         supabase.from('paddocks').select('*').in('farm_id', farmIds),
         supabase.from('livestock_mobs').select('*').in('farm_id', farmIds),
@@ -138,6 +156,8 @@ export const useDataStore = create<DataStore>()((set) => ({
         supabase.from('inventory').select('*').in('farm_id', farmIds),
         supabase.from('tasks').select('*').in('farm_id', farmIds),
         supabase.from('farm_users').select('*').in('farm_id', farmIds),
+        supabase.from('devices').select('*').in('farm_id', farmIds),
+        supabase.from('geofence_events').select('*').in('farm_id', farmIds).order('occurred_at', { ascending: false }).limit(200),
       ]);
 
       const farmEquipment = mapRows<Equipment>(equipRes.data);
@@ -167,6 +187,8 @@ export const useDataStore = create<DataStore>()((set) => ({
         inventory:       mapRows<InventoryItem>(invRes.data),
         tasks:           mapRows<Task>(tasksRes.data),
         users:           mapRows<User>(usersRes.data),
+        devices:         mapRows<Device>(devicesRes.data),
+        geofenceEvents:  mapRows<GeofenceEvent>(geofenceRes.data),
         dataLoading: false,
       });
     } catch (err) {
@@ -195,6 +217,8 @@ export const useDataStore = create<DataStore>()((set) => ({
       inventory:       mock.inventory,
       tasks:           mock.tasks,
       users:           mock.users,
+      devices:         mock.devices,
+      geofenceEvents:  mock.geofenceEvents,
       dataLoading:     false,
     });
   },
@@ -472,5 +496,72 @@ export const useDataStore = create<DataStore>()((set) => ({
     set((s) => ({ equipment: s.equipment.map((e) => e.id === id ? { ...e, ...data } : e) }));
     supabase.from('equipment').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] updateEquipment:', error.message); });
+  },
+
+  // ── Users (team directory / profile) ────────────────────────────────────────
+
+  addUser: async (farmId, data) => {
+    const record: User = { ...data, id: uid(), farmId };
+    const { error } = await supabase.from('farm_users').insert(jsToDb(record as unknown as Record<string, unknown>));
+    if (error) throw new Error(error.message);
+    set((s) => ({ users: [...s.users, record] }));
+    return record;
+  },
+  updateUser: async (id, data) => {
+    set((s) => ({ users: s.users.map((u) => u.id === id ? { ...u, ...data } : u) }));
+    const { error } = await supabase.from('farm_users')
+      .update(jsToDb(data as Record<string, unknown>))
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+  ensureOwnerProfile: async (farmId, authUserId, email, name) => {
+    const existing = get().users.find((u) => u.farmId === farmId && u.userId === authUserId);
+    if (existing) return existing;
+
+    // Someone may have added a farm_users contact row with this email before
+    // it was ever linked to a real login (e.g. seeded during onboarding) —
+    // claim it instead of creating a duplicate.
+    const unclaimed = get().users.find((u) => u.farmId === farmId && !u.userId && u.email === email);
+    if (unclaimed) {
+      await get().updateUser(unclaimed.id, { userId: authUserId });
+      return { ...unclaimed, userId: authUserId };
+    }
+
+    return get().addUser(farmId, {
+      userId: authUserId, name, email, role: 'owner', active: true,
+      lastLogin: new Date().toISOString().slice(0, 10),
+    });
+  },
+
+  // ── Devices (Tractor Mode) ───────────────────────────────────────────────────
+
+  addDevice: async (farmId, data) => {
+    const record: Device = { ...data, id: uid(), farmId, status: 'active', createdAt: new Date().toISOString() };
+    const { error } = await supabase.from('devices').insert(jsToDb(record as unknown as Record<string, unknown>));
+    if (error) throw new Error(error.message);
+    set((s) => ({ devices: [...s.devices, record] }));
+    return record;
+  },
+  updateDevice: async (id, data) => {
+    set((s) => ({ devices: s.devices.map((d) => d.id === id ? { ...d, ...data } : d) }));
+    const { error } = await supabase.from('devices')
+      .update(jsToDb(data as Record<string, unknown>))
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+  deleteDevice: async (id) => {
+    set((s) => ({ devices: s.devices.filter((d) => d.id !== id) }));
+    const { error } = await supabase.from('devices').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  // ── Geofencing ────────────────────────────────────────────────────────────
+
+  addGeofenceEvent: async (farmId, data) => {
+    const record: GeofenceEvent = { ...data, id: uid(), farmId, occurredAt: new Date().toISOString() };
+    set((s) => ({ geofenceEvents: [record, ...s.geofenceEvents].slice(0, 200) }));
+    const { error } = await supabase.from('geofence_events').insert(jsToDb(record as unknown as Record<string, unknown>));
+    if (error) throw new Error(error.message);
+    return record;
   },
 }));

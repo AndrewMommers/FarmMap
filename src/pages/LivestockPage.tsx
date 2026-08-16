@@ -71,7 +71,7 @@ export function LivestockPage() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Head" value={totalCount.toLocaleString()} subtitle={`${livestockMobs.length} mobs`}
           icon={<Tag className="w-5 h-5" />} color="amber" />
         <StatCard title="Sheep" value={livestockMobs.filter(m => m.species === 'sheep').reduce((s, m) => s + m.count, 0).toLocaleString()}

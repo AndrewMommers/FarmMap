@@ -107,7 +107,7 @@ export function InventoryPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total SKUs" value={inventory.length} icon={<Package className="w-5 h-5" />} color="blue" />
         <StatCard title="Inventory Value" value={formatCurrency(totalValue)} icon={<Package className="w-5 h-5" />} color="green" />
         <StatCard title="Low Stock Alerts" value={lowStock.length} icon={<AlertTriangle className="w-5 h-5" />} color={lowStock.length > 0 ? 'red' : 'green'} />

@@ -5,7 +5,7 @@ import { useDataStore } from '../store/dataStore';
 import {
   Wheat, Map, Beef, Sprout, Wrench, DollarSign, Package, CloudRain,
   CheckSquare, FileBarChart, ShieldCheck, Tractor, PlayCircle, ArrowRight,
-  Menu, X, Check, Landmark, Zap, RefreshCw, MapPin, Users,
+  Menu, X, Check, Landmark, Zap, RefreshCw, MapPin, Users, Compass,
 } from 'lucide-react';
 
 const INTEGRATIONS = [
@@ -46,12 +46,40 @@ const FARM_TYPES = [
 ];
 
 const PADDOCK_MOCK = [
-  { name: 'North Block', color: 'bg-farm-500', style: { gridColumn: '1 / 3', gridRow: '1 / 3' } },
-  { name: 'Home Paddock', color: 'bg-earth-400', style: { gridColumn: '3 / 5', gridRow: '1 / 2' } },
-  { name: 'River Flat', color: 'bg-sky-500', style: { gridColumn: '3 / 4', gridRow: '2 / 4' } },
-  { name: 'East 40', color: 'bg-farm-700', style: { gridColumn: '4 / 5', gridRow: '2 / 4' } },
-  { name: 'Back Paddock', color: 'bg-earth-600', style: { gridColumn: '1 / 3', gridRow: '3 / 4' } },
+  { name: 'North Block', color: 'bg-farm-500', clip: 'polygon(6% 0%, 100% 9%, 93% 100%, 0% 91%)', style: { gridColumn: '1 / 3', gridRow: '1 / 3' } },
+  { name: 'Home Paddock', color: 'bg-earth-400', clip: 'polygon(0% 12%, 90% 0%, 100% 85%, 8% 100%)', style: { gridColumn: '3 / 5', gridRow: '1 / 2' } },
+  { name: 'River Flat', color: 'bg-sky-500', clip: 'polygon(4% 5%, 96% 0%, 100% 95%, 2% 100%)', style: { gridColumn: '3 / 4', gridRow: '2 / 4' } },
+  { name: 'East 40', color: 'bg-farm-700', clip: 'polygon(0% 0%, 94% 6%, 100% 100%, 6% 96%)', style: { gridColumn: '4 / 5', gridRow: '2 / 4' } },
+  { name: 'Back Paddock', color: 'bg-earth-600', clip: 'polygon(8% 0%, 100% 8%, 92% 100%, 0% 88%)', style: { gridColumn: '1 / 3', gridRow: '3 / 4' } },
 ];
+
+// Decorative topographic contour lines — evokes elevation/land contours,
+// literally on-subject for a mapping product. Deliberately simple paths.
+function ContourLines({ className, color }: { className?: string; color: string }) {
+  return (
+    <svg className={className} viewBox="0 0 800 400" fill="none" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0,60 C150,20 300,100 450,60 C600,20 750,80 800,60" stroke={color} strokeWidth="1.5" />
+      <path d="M0,140 C150,100 300,180 450,140 C600,100 750,160 800,140" stroke={color} strokeWidth="1.5" />
+      <path d="M0,220 C150,180 300,260 450,220 C600,180 750,240 800,220" stroke={color} strokeWidth="1.5" />
+      <path d="M0,300 C150,260 300,340 450,300 C600,260 750,320 800,300" stroke={color} strokeWidth="1.5" />
+      <path d="M0,380 C150,340 300,400 450,380 C600,340 750,400 800,380" stroke={color} strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function Eyebrow({ icon: Icon, children, tone = 'dark' }: { icon: typeof Wheat; children: React.ReactNode; tone?: 'dark' | 'light' | 'earth' }) {
+  const toneClass = {
+    dark: 'bg-white/10 text-farm-200',
+    light: 'bg-farm-100 text-farm-700',
+    earth: 'bg-earth-100 text-earth-700',
+  }[tone];
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full text-xs font-bold uppercase tracking-wide px-3 py-1 mb-5 ${toneClass}`}>
+      <Icon className="w-3.5 h-3.5" />
+      {children}
+    </span>
+  );
+}
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -115,16 +143,16 @@ export function LandingPage() {
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section id="top" className="relative overflow-hidden bg-gradient-to-br from-farm-900 via-farm-800 to-earth-900">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 lg:py-28 grid lg:grid-cols-2 gap-12 items-center">
+        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.15] pointer-events-none" color="#bbf7d0" />
+        <Compass className="absolute -right-6 top-8 w-40 h-40 text-farm-200/10 pointer-events-none hidden lg:block" strokeWidth={0.75} />
+
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-20 lg:py-28 grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 text-farm-200 text-xs font-semibold px-3 py-1 mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-farm-400" />
-              Built for Australian farms
-            </span>
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight">
-              Run the whole farm from one map.
+            <Eyebrow icon={Compass} tone="dark">Built for Australian farms</Eyebrow>
+            <h1 className="font-display text-5xl sm:text-6xl font-bold text-white leading-[1.02] tracking-tight text-balance">
+              Run the whole farm from <em className="italic text-farm-300">one map.</em>
             </h1>
-            <p className="mt-5 text-lg text-farm-100/90 max-w-xl">
+            <p className="mt-6 text-lg text-farm-100/90 max-w-xl">
               FarmMap brings paddocks, livestock, crops, equipment, finances and compliance
               records into a single map-first view — so you can stop chasing spreadsheets
               and start seeing your property the way you actually work it.
@@ -145,32 +173,47 @@ export function LandingPage() {
             <p className="mt-4 text-xs text-farm-300/80">No card required — the demo runs entirely with sample data in your browser.</p>
           </div>
 
-          {/* Hero visual: stylised paddock map */}
+          {/* Hero visual: stylised paddock map, framed like a real browser window */}
           <div className="relative">
-            <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-2xl p-4 rotate-1">
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <Map className="w-4 h-4 text-farm-600" />
-                <span className="text-sm font-bold text-gray-800 dark:text-gray-100">Home Farm — Paddocks</span>
+            <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-2xl shadow-black/40 overflow-hidden ring-1 ring-black/5">
+              {/* Browser chrome */}
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-300" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
+                <span className="w-2.5 h-2.5 rounded-full bg-farm-300" />
+                <span className="ml-2 flex-1 text-center text-[10px] font-mono text-gray-400 bg-white dark:bg-gray-900 rounded-md py-1 truncate px-2">
+                  app.farmmap.com.au/paddocks
+                </span>
               </div>
-              <div className="grid grid-cols-4 grid-rows-3 gap-1.5 h-56 sm:h-64">
-                {PADDOCK_MOCK.map((p) => (
-                  <div
-                    key={p.name}
-                    style={p.style}
-                    className={`${p.color} rounded-lg flex items-end p-2 shadow-inner`}
-                  >
-                    <span className="text-[10px] sm:text-xs font-semibold text-white/95 drop-shadow">{p.name}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center justify-between px-1 text-xs text-gray-400">
-                <span>5 paddocks · 240 ha</span>
-                <span className="inline-flex items-center gap-1 text-farm-600 font-semibold"><Check className="w-3 h-3" /> Synced</span>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <Map className="w-4 h-4 text-farm-600" />
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-100">Home Farm — Paddocks</span>
+                </div>
+                <div className="grid grid-cols-4 grid-rows-3 gap-1.5 h-56 sm:h-64">
+                  {PADDOCK_MOCK.map((p) => (
+                    <div key={p.name} style={p.style} className="relative">
+                      <div
+                        className={`${p.color} absolute inset-0 flex items-end p-2.5 transition-transform hover:scale-[1.03]`}
+                        style={{ clipPath: p.clip }}
+                      >
+                        <span className="text-[10px] sm:text-xs font-semibold text-white/95 drop-shadow">{p.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center justify-between px-1 text-xs text-gray-400">
+                  <span>5 paddocks · 240 ha</span>
+                  <span className="inline-flex items-center gap-1 text-farm-600 font-semibold"><Check className="w-3 h-3" /> Synced</span>
+                </div>
               </div>
             </div>
-            <div className="absolute -bottom-6 -left-6 hidden sm:block rounded-xl bg-white dark:bg-gray-900 shadow-xl px-4 py-3 -rotate-2">
+            <div className="absolute -bottom-16 -left-8 hidden sm:block rounded-xl bg-white dark:bg-gray-900 shadow-xl px-4 py-3 -rotate-2 ring-1 ring-black/5">
               <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Rainfall this month</p>
               <p className="text-xl font-extrabold text-sky-600">38<span className="text-sm font-semibold text-gray-400"> mm</span></p>
+            </div>
+            <div className="absolute -top-4 -right-4 hidden sm:flex items-center gap-1.5 rounded-full bg-sky-600 text-white text-[10px] font-bold px-3 py-1.5 shadow-xl rotate-3">
+              <MapPin className="w-3 h-3" /> GPS active
             </div>
           </div>
         </div>
@@ -189,7 +232,8 @@ export function LandingPage() {
       {/* ── Features ────────────────────────────────────────────────────── */}
       <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <h2 className="text-3xl font-extrabold tracking-tight">Every part of the farm, one system</h2>
+          <Eyebrow icon={Map} tone="light">The platform</Eyebrow>
+          <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Every part of the farm, one system</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             Replace the paper diary, the spray logbook and the shed full of folders with records
             that live on the map where the work actually happens.
@@ -197,8 +241,11 @@ export function LandingPage() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {FEATURES.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="card hover:shadow-md hover:border-farm-200 dark:hover:border-farm-800 transition-all">
-              <div className="w-10 h-10 rounded-xl bg-farm-100 dark:bg-farm-900/40 flex items-center justify-center mb-3">
+            <div
+              key={title}
+              className="card group hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-100 to-farm-200 dark:from-farm-900/40 dark:to-farm-800/40 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                 <Icon className="w-5 h-5 text-farm-700 dark:text-farm-400" />
               </div>
               <h3 className="font-bold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -249,11 +296,8 @@ export function LandingPage() {
             </div>
           </div>
           <div className="order-1 lg:order-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-farm-800 text-farm-200 text-xs font-semibold px-3 py-1 mb-5">
-              <Tractor className="w-3.5 h-3.5" />
-              In the cab
-            </span>
-            <h2 className="text-3xl font-extrabold text-white tracking-tight">Built to be used from the cab, not just the office</h2>
+            <Eyebrow icon={Tractor} tone="dark">In the cab</Eyebrow>
+            <h2 className="font-display text-4xl font-bold text-white tracking-tight text-balance">Built to be used from the cab, not just the office</h2>
             <p className="mt-4 text-farm-200/90">
               Register a tablet once and it launches straight into Tractor Mode — big, glove-friendly
               buttons, a live map, and your team, all in one screen.
@@ -278,11 +322,8 @@ export function LandingPage() {
       {/* ── Integrations ────────────────────────────────────────────────── */}
       <section id="integrations" className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <span className="inline-flex items-center gap-2 rounded-full bg-farm-100 text-farm-700 text-xs font-semibold px-3 py-1 mb-5">
-            <RefreshCw className="w-3.5 h-3.5" />
-            Connected
-          </span>
-          <h2 className="text-3xl font-extrabold tracking-tight">Plugs into the tools you already run</h2>
+          <Eyebrow icon={RefreshCw} tone="light">Connected</Eyebrow>
+          <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Plugs into the tools you already run</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             FarmMap doesn't ask you to abandon your equipment telematics or your accounting software —
             it syncs with them, so the numbers in your reports match what's actually happening on the ground.
@@ -290,8 +331,8 @@ export function LandingPage() {
         </div>
         <div className="grid sm:grid-cols-3 gap-5">
           {INTEGRATIONS.map(({ icon: Icon, name, desc }) => (
-            <div key={name} className="card hover:shadow-md hover:border-farm-200 dark:hover:border-farm-800 transition-all">
-              <div className="w-10 h-10 rounded-xl bg-farm-700 flex items-center justify-center mb-3">
+            <div key={name} className="card hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-600 to-farm-800 flex items-center justify-center mb-3">
                 <Icon className="w-5 h-5 text-white" />
               </div>
               <h3 className="font-bold text-gray-900 dark:text-gray-100">{name}</h3>
@@ -308,11 +349,8 @@ export function LandingPage() {
       {/* ── Compliance ──────────────────────────────────────────────────── */}
       <section id="compliance" className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-earth-100 text-earth-700 text-xs font-semibold px-3 py-1 mb-5">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Audit-ready
-          </span>
-          <h2 className="text-3xl font-extrabold tracking-tight">Compliance paperwork, sorted automatically</h2>
+          <Eyebrow icon={ShieldCheck} tone="earth">Audit-ready</Eyebrow>
+          <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Compliance paperwork, sorted automatically</h2>
           <p className="mt-4 text-gray-500 dark:text-gray-400">
             Every spray job you log builds your chemical use register, complete with withholding
             periods, so it's ready the moment an auditor, agronomist or buyer asks for it.
@@ -357,9 +395,10 @@ export function LandingPage() {
       </section>
 
       {/* ── CTA ─────────────────────────────────────────────────────────── */}
-      <section className="bg-farm-50 dark:bg-gray-900/40 border-t border-farm-100 dark:border-gray-800">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight">Ready to get off the spreadsheets?</h2>
+      <section className="relative overflow-hidden bg-farm-50 dark:bg-gray-900/40 border-t border-farm-100 dark:border-gray-800">
+        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.35] dark:opacity-[0.08] pointer-events-none" color="#86efac" />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+          <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Ready to get off the spreadsheets?</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             Create a free account and set up your farm in a couple of minutes, or explore FarmMap
             first with sample data — no sign-up required.

@@ -39,6 +39,9 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Display serif for headline moments on the public website only —
+        // the app itself stays on Inter throughout.
+        display: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
       },
       screens: {
         'tractor': '320px',

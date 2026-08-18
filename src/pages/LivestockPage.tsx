@@ -8,6 +8,7 @@ import { RecordMobMovementModal } from '../components/modals/RecordMobMovementMo
 import { AddMobTreatmentModal } from '../components/modals/AddMobTreatmentModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatDate } from '../lib/utils';
 import toast from 'react-hot-toast';
 import { Plus, Tag, AlertTriangle, Trash2, Pencil } from 'lucide-react';
@@ -15,6 +16,7 @@ import type { LivestockMobGroup, LivestockAnimal } from '../types';
 
 export function LivestockPage() {
   const { livestockMobs, livestock, paddocks } = useFarmData();
+  const canWriteLivestock = useCanWrite('livestock');
   const deleteLivestockMob = useDataStore((s) => s.deleteLivestockMob);
   const deleteLivestockAnimal = useDataStore((s) => s.deleteLivestockAnimal);
   const [tab, setTab] = useState<'mobs' | 'individual'>('mobs');
@@ -70,9 +72,11 @@ export function LivestockPage() {
         title="Livestock"
         subtitle="NLIS-compliant herd & mob management"
         actions={
-          <button className="btn-primary" onClick={() => setShowAddLivestock(true)}>
-            <Plus className="w-4 h-4" /> Add Animals
-          </button>
+          canWriteLivestock ? (
+            <button className="btn-primary" onClick={() => setShowAddLivestock(true)}>
+              <Plus className="w-4 h-4" /> Add Animals
+            </button>
+          ) : undefined
         }
       />
 
@@ -126,12 +130,14 @@ export function LivestockPage() {
                 </div>
               </div>
               {mob.notes && <p className="mt-2 text-xs text-gray-500">{mob.notes}</p>}
-              <div className="mt-4 flex gap-2">
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setMovementMob(mob)}>Record Movement</button>
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setTreatmentMob(mob)}>Add Treatment</button>
-                <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit mob" onClick={() => setEditingMob(mob)}><Pencil className="w-4 h-4" /></button>
-                <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete mob" onClick={() => handleDeleteMob(mob.id, mob.name)}><Trash2 className="w-4 h-4" /></button>
-              </div>
+              {canWriteLivestock && (
+                <div className="mt-4 flex gap-2">
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setMovementMob(mob)}>Record Movement</button>
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setTreatmentMob(mob)}>Add Treatment</button>
+                  <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit mob" onClick={() => setEditingMob(mob)}><Pencil className="w-4 h-4" /></button>
+                  <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete mob" onClick={() => handleDeleteMob(mob.id, mob.name)}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -158,10 +164,12 @@ export function LivestockPage() {
                   <td className="table-cell">{getPaddockName(a.paddockId)}</td>
                   <td className="table-cell text-xs text-gray-400 max-w-[160px] truncate">{a.notes ?? '—'}</td>
                   <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit animal" onClick={() => setEditingAnimal(a)}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete animal" onClick={() => handleDeleteAnimal(a.id, a.tag)}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
+                    {canWriteLivestock && (
+                      <div className="flex gap-1">
+                        <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit animal" onClick={() => setEditingAnimal(a)}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete animal" onClick={() => handleDeleteAnimal(a.id, a.tag)}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

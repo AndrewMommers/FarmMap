@@ -10,6 +10,7 @@ import { PaddockLogModal } from '../components/modals/PaddockLogModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { useAppStore } from '../store/appStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatDate } from '../lib/utils';
 import toast from 'react-hot-toast';
 import type { Paddock, MapFeatureType } from '../types';
@@ -18,6 +19,8 @@ import { Plus, MapPin, Droplets, Map, LayoutGrid, Trash2, Pencil } from 'lucide-
 export function PaddocksPage() {
   const { paddocks, farm } = useFarmData();
   const { activeFarmId } = useAppStore();
+  const canWritePaddocks = useCanWrite('paddocks');
+  const canWriteCrops = useCanWrite('crops');
   const deletePaddock    = useDataStore((s) => s.deletePaddock);
   const allFenceLines    = useDataStore((s) => s.fenceLines);
   const allMapFeatures   = useDataStore((s) => s.mapFeatures);
@@ -108,9 +111,11 @@ export function PaddocksPage() {
                 <Map className="w-3.5 h-3.5" /> Map
               </button>
             </div>
-            <button className="btn-primary" onClick={() => setShowAddPaddock(true)}>
-              <Plus className="w-4 h-4" /> Add Paddock
-            </button>
+            {canWritePaddocks && (
+              <button className="btn-primary" onClick={() => setShowAddPaddock(true)}>
+                <Plus className="w-4 h-4" /> Add Paddock
+              </button>
+            )}
           </div>
         }
       />
@@ -217,9 +222,9 @@ export function PaddocksPage() {
                   )}
                   <div className="flex gap-2 pt-2">
                     <button className="flex-1 btn-secondary text-xs py-2" onClick={() => setLogPaddock(selected)}>View Log</button>
-                    <button className="flex-1 btn-secondary text-xs py-2" onClick={() => setSprayPaddock(selected)}><Droplets className="w-3 h-3" /> Spray</button>
-                    <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit paddock" onClick={() => setEditingPaddock(selected)}><Pencil className="w-4 h-4" /></button>
-                    <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete paddock" onClick={() => handleDelete(selected.id, selected.name)}><Trash2 className="w-4 h-4" /></button>
+                    {canWriteCrops && <button className="flex-1 btn-secondary text-xs py-2" onClick={() => setSprayPaddock(selected)}><Droplets className="w-3 h-3" /> Spray</button>}
+                    {canWritePaddocks && <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit paddock" onClick={() => setEditingPaddock(selected)}><Pencil className="w-4 h-4" /></button>}
+                    {canWritePaddocks && <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete paddock" onClick={() => handleDelete(selected.id, selected.name)}><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </>
               ) : (
@@ -319,11 +324,13 @@ export function PaddocksPage() {
                   <button className="flex-1 btn-secondary text-xs py-1.5" onClick={(e) => { e.stopPropagation(); setLogPaddock(p); }}>
                     View Log
                   </button>
-                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={(e) => { e.stopPropagation(); setSprayPaddock(p); }}>
-                    <Droplets className="w-3 h-3" /> Spray
-                  </button>
-                  <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit paddock" onClick={(e) => { e.stopPropagation(); setEditingPaddock(p); }}><Pencil className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete paddock" onClick={(e) => { e.stopPropagation(); handleDelete(p.id, p.name); }}><Trash2 className="w-4 h-4" /></button>
+                  {canWriteCrops && (
+                    <button className="flex-1 btn-secondary text-xs py-1.5" onClick={(e) => { e.stopPropagation(); setSprayPaddock(p); }}>
+                      <Droplets className="w-3 h-3" /> Spray
+                    </button>
+                  )}
+                  {canWritePaddocks && <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit paddock" onClick={(e) => { e.stopPropagation(); setEditingPaddock(p); }}><Pencil className="w-4 h-4" /></button>}
+                  {canWritePaddocks && <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete paddock" onClick={(e) => { e.stopPropagation(); handleDelete(p.id, p.name); }}><Trash2 className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}

@@ -7,6 +7,7 @@ import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddTransactionModal } from '../components/modals/AddTransactionModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import { downloadCSV, downloadPDF } from '../lib/export';
@@ -30,6 +31,7 @@ const CATEGORY_LABELS: Record<TransactionCategory, string> = {
 
 export function FinancePage() {
   const { transactions, budgets } = useFarmData();
+  const canWriteFinance = useCanWrite('finance');
   const deleteTransaction = useDataStore((s) => s.deleteTransaction);
   const [tab, setTab] = useState<'ledger' | 'budget'>('ledger');
   const [search, setSearch] = useState('');
@@ -111,9 +113,11 @@ export function FinancePage() {
         actions={
           <>
             <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
-            <button className="btn-primary" onClick={() => setShowAddTx(true)}>
-              <Plus className="w-4 h-4" /> New Transaction
-            </button>
+            {canWriteFinance && (
+              <button className="btn-primary" onClick={() => setShowAddTx(true)}>
+                <Plus className="w-4 h-4" /> New Transaction
+              </button>
+            )}
           </>
         }
       />
@@ -191,10 +195,12 @@ export function FinancePage() {
                   </td>
                   <td className="table-cell text-xs text-gray-400">{t.supplier ?? t.notes ?? '—'}</td>
                   <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit" onClick={() => setEditingTx(t)}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete" onClick={() => handleDelete(t.id, t.description)}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
+                    {canWriteFinance && (
+                      <div className="flex gap-1">
+                        <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit" onClick={() => setEditingTx(t)}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete" onClick={() => handleDelete(t.id, t.description)}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

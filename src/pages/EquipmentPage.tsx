@@ -10,6 +10,7 @@ import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
 import { LogServiceModal } from '../components/modals/LogServiceModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatDate, formatCurrency } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import { downloadCSV, downloadPDF } from '../lib/export';
@@ -19,6 +20,7 @@ import type { Equipment } from '../types';
 
 export function EquipmentPage() {
   const { equipment, maintenanceLogs } = useFarmData();
+  const canWriteEquipment = useCanWrite('equipment');
   const deleteEquipment = useDataStore((s) => s.deleteEquipment);
   const [tab, setTab] = useState<'fleet' | 'maintenance'>('fleet');
   const [search, setSearch] = useState('');
@@ -114,9 +116,11 @@ export function EquipmentPage() {
         actions={
           <>
             <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
-            <button className="btn-primary" onClick={() => setShowAddEquipment(true)}>
-              <Plus className="w-4 h-4" /> Add Equipment
-            </button>
+            {canWriteEquipment && (
+              <button className="btn-primary" onClick={() => setShowAddEquipment(true)}>
+                <Plus className="w-4 h-4" /> Add Equipment
+              </button>
+            )}
           </>
         }
       />
@@ -184,11 +188,13 @@ export function EquipmentPage() {
                 {e.purchasePriceAUD && <div className="flex justify-between"><span className="text-gray-500">Purchase price</span><span>{formatCurrency(e.purchasePriceAUD)}</span></div>}
               </div>
               {e.notes && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1">{e.notes}</p>}
-              <div className="mt-4 flex gap-2">
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setServicingEquipment(e)}>Log Service</button>
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setEditingEquipment(e)}><Pencil className="w-3 h-3 mr-1 inline" />Edit</button>
-                <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete equipment" onClick={() => handleDelete(e.id, e.name)}><Trash2 className="w-4 h-4" /></button>
-              </div>
+              {canWriteEquipment && (
+                <div className="mt-4 flex gap-2">
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setServicingEquipment(e)}>Log Service</button>
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setEditingEquipment(e)}><Pencil className="w-3 h-3 mr-1 inline" />Edit</button>
+                  <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete equipment" onClick={() => handleDelete(e.id, e.name)}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
             </div>
           ))}
         </div>

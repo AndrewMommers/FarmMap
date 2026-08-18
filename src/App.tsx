@@ -17,6 +17,7 @@ import { ChatPage } from './pages/ChatPage';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { AcceptInvitePage } from './pages/auth/AcceptInvitePage';
 import { CreateFarmPage } from './pages/onboarding/CreateFarmPage';
 import { useAuthStore } from './store/authStore';
 import { useDataStore } from './store/dataStore';
@@ -97,6 +98,18 @@ export default function App() {
     return (
       <BrowserRouter>
         <ResetPasswordPage />
+      </BrowserRouter>
+    );
+  }
+
+  // ── Team invite link ───────────────────────────────────────────────────────
+  // Same reasoning as /reset-password above: the invite email's link lands
+  // here with a fresh session already established, before any of the
+  // demo/onboarding/main-app branches below get a chance to redirect it away.
+  if (window.location.pathname === '/accept-invite') {
+    return (
+      <BrowserRouter>
+        <AcceptInvitePage />
       </BrowserRouter>
     );
   }

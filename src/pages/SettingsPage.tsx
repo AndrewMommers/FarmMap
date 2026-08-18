@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { EditUserModal } from '../components/modals/EditUserModal';
+import { InviteUserModal } from '../components/modals/InviteUserModal';
+import { useMyRole, useCanWrite } from '../lib/permissions';
 import type { FarmType, State, User, TransactionCategory, TransactionType } from '../types';
 
 const TABS = [
@@ -46,9 +48,14 @@ export function SettingsPage() {
   const addTransaction = useDataStore((s) => s.addTransaction);
   const { activeFarmId, demoMode, notificationPrefs, setNotificationPrefs } = useAppStore();
   const { user: authUser } = useAuthStore();
+  const { role: myRole } = useMyRole();
+  const isOwner = myRole === 'owner';
+  const canWriteDevices = useCanWrite('devices');
+  const canWriteIntegrations = isOwner; // matrix: integrations write is owner-only (manager only gets read)
   const [tab, setTab] = useState('general');
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingUser, setEditingUser] = useState<User | undefined>();
+  const [invitingUser, setInvitingUser] = useState(false);
   const [importing, setImporting] = useState(false);
   const [pushPermission, setPushPermission] = useState(getNotificationPermission());
 
@@ -391,6 +398,14 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <EditUserModal open={!!editingUser} onClose={() => setEditingUser(undefined)} user={editingUser} />
+      {farm && (
+        <InviteUserModal
+          open={invitingUser}
+          onClose={() => setInvitingUser(false)}
+          farmId={farm.id}
+          onInvited={() => { if (authUser) useDataStore.getState().loadFromSupabase(authUser.id); }}
+        />
+      )}
       <PageHeader title="Settings" subtitle="Farm configuration, users, integrations, and data management" />
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -533,9 +548,11 @@ export function SettingsPage() {
             <div className="card space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="section-title">Team Members</h2>
-                <button className="btn-primary text-xs" onClick={() => toast.success('Invite user – coming in full release')}>
-                  <Plus className="w-4 h-4" /> Invite User
-                </button>
+                {isOwner && (
+                  <button className="btn-primary text-xs" onClick={() => setInvitingUser(true)}>
+                    <Plus className="w-4 h-4" /> Invite User
+                  </button>
+                )}
               </div>
               <div className="space-y-3">
                 {users.map(u => (
@@ -551,8 +568,9 @@ export function SettingsPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <StatusBadge status={u.role} label={u.role} />
+                      {!u.userId && <StatusBadge status="pending" label="Pending" />}
                       <StatusBadge status={u.active ? 'active' : 'locked'} label={u.active ? 'Active' : 'Inactive'} />
-                      <button className="btn-secondary text-xs py-1 px-2" onClick={() => setEditingUser(u)}>Edit</button>
+                      {isOwner && <button className="btn-secondary text-xs py-1 px-2" onClick={() => setEditingUser(u)}>Edit</button>}
                     </div>
                   </div>
                 ))}
@@ -654,7 +672,7 @@ export function SettingsPage() {
                   }`}>
                     {demoMode ? 'unavailable in demo' : johnDeere?.status ?? 'disconnected'}
                   </span>
-                  {!demoMode && johnDeere?.status === 'connected' ? (
+                  {canWriteIntegrations && (!demoMode && johnDeere?.status === 'connected' ? (
                     <>
                       <button className="btn-secondary text-xs py-1.5" disabled={jdBusy !== null} onClick={handleSyncJohnDeere}>
                         <RefreshCw className={`w-3.5 h-3.5 ${jdBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
@@ -671,7 +689,7 @@ export function SettingsPage() {
                     >
                       {jdBusy === 'connect' ? 'Connecting…' : 'Connect'}
                     </button>
-                  )}
+                  ))}
                 </div>
               </div>
               <p className="text-xs text-gray-400 -mt-2">
@@ -705,7 +723,7 @@ export function SettingsPage() {
                   }`}>
                     {demoMode ? 'unavailable in demo' : xero?.status ?? 'disconnected'}
                   </span>
-                  {!demoMode && xero?.status === 'connected' ? (
+                  {canWriteIntegrations && (!demoMode && xero?.status === 'connected' ? (
                     <>
                       <button className="btn-secondary text-xs py-1.5" disabled={xeroBusy !== null} onClick={handleSyncXero}>
                         <RefreshCw className={`w-3.5 h-3.5 ${xeroBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
@@ -722,7 +740,7 @@ export function SettingsPage() {
                     >
                       {xeroBusy === 'connect' ? 'Connecting…' : 'Connect'}
                     </button>
-                  )}
+                  ))}
                 </div>
               </div>
               <p className="text-xs text-gray-400 -mt-2">
@@ -756,7 +774,7 @@ export function SettingsPage() {
                   }`}>
                     {demoMode ? 'unavailable in demo' : zepto?.status ?? 'disconnected'}
                   </span>
-                  {!demoMode && zepto?.status === 'connected' ? (
+                  {canWriteIntegrations && (!demoMode && zepto?.status === 'connected' ? (
                     <>
                       <button className="btn-secondary text-xs py-1.5" disabled={zeptoBusy !== null} onClick={handleSyncZepto}>
                         <RefreshCw className={`w-3.5 h-3.5 ${zeptoBusy === 'sync' ? 'animate-spin' : ''}`} /> Sync Now
@@ -773,7 +791,7 @@ export function SettingsPage() {
                     >
                       Connect
                     </button>
-                  )}
+                  ))}
                 </div>
               </div>
               <p className="text-xs text-gray-400 -mt-2">
@@ -794,7 +812,7 @@ export function SettingsPage() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="badge bg-gray-100 text-gray-500">{i.status}</span>
-                    <button className="btn-secondary text-xs py-1.5" onClick={() => toast(`Connect ${i.name} – coming in full release`)}>Connect</button>
+                    {canWriteIntegrations && <button className="btn-secondary text-xs py-1.5" onClick={() => toast(`Connect ${i.name} – coming in full release`)}>Connect</button>}
                   </div>
                 </div>
               ))}
@@ -808,9 +826,11 @@ export function SettingsPage() {
                   <h2 className="section-title">Registered Devices</h2>
                   <p className="text-xs text-gray-400 mt-0.5">Tablets and phones set up for Tractor Mode in the cab.</p>
                 </div>
-                <button className="btn-primary text-xs" onClick={() => setShowRegisterDevice(true)}>
-                  <Plus className="w-4 h-4" /> Register This Device
-                </button>
+                {canWriteDevices && (
+                  <button className="btn-primary text-xs" onClick={() => setShowRegisterDevice(true)}>
+                    <Plus className="w-4 h-4" /> Register This Device
+                  </button>
+                )}
               </div>
 
               {paired && (thisDevice || demoMode) && (
@@ -857,16 +877,20 @@ export function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <select
-                          className="input text-xs py-1 w-36"
-                          value={d.assignedUserId ?? ''}
-                          onChange={(e) => assignDevice(d.id, e.target.value || undefined)}
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                        {canWriteDevices ? (
+                          <select
+                            className="input text-xs py-1 w-36"
+                            value={d.assignedUserId ?? ''}
+                            onChange={(e) => assignDevice(d.id, e.target.value || undefined)}
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-400">{users.find((u) => u.id === d.assignedUserId)?.name ?? 'Unassigned'}</span>
+                        )}
                         <StatusBadge status={d.status === 'active' ? 'active' : 'locked'} label={d.status === 'active' ? 'Active' : 'Revoked'} />
-                        {d.status === 'active' ? (
+                        {canWriteDevices && (d.status === 'active' ? (
                           <button className="btn-secondary text-xs py-1 px-2 text-red-600 hover:bg-red-50" onClick={() => handleRevokeDevice(d.id, d.name)}>
                             <Unplug className="w-3.5 h-3.5" /> Revoke
                           </button>
@@ -874,7 +898,7 @@ export function SettingsPage() {
                           <button className="btn-secondary text-xs py-1 px-2" onClick={() => reactivateDevice(d.id)}>
                             <RotateCcw className="w-3.5 h-3.5" /> Reactivate
                           </button>
-                        )}
+                        ))}
                         <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remove device" onClick={() => handleDeleteDevice(d.id, d.name)}>
                           <Trash2 className="w-4 h-4" />
                         </button>

@@ -46,7 +46,7 @@ interface DataStore {
   subscribeToRealtime: (farmIds: string[]) => () => void;
 
   // ── Farms ────────────────────────────────────────────────────────────────
-  addFarm: (userId: string, data: Omit<Farm, 'id' | 'createdAt'>) => Promise<Farm>;
+  addFarm: (userId: string, data: Omit<Farm, 'id' | 'createdAt' | 'userId'>) => Promise<Farm>;
   updateFarm: (id: string, data: Partial<Omit<Farm, 'id' | 'createdAt'>>) => Promise<void>;
 
   // ── Paddocks ─────────────────────────────────────────────────────────────
@@ -141,11 +141,17 @@ export const useDataStore = create<DataStore>()((set, get) => ({
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
 
-  loadFromSupabase: async (userId: string) => {
+  // The signed-in user's ID is implicit in their session (RLS reads it via
+  // auth.uid()) — this param is kept for call-site/API stability even though
+  // the query below no longer filters by it explicitly.
+  loadFromSupabase: async (_userId: string) => {
     set({ dataLoading: true });
     try {
+      // Deliberately no .eq('user_id', ...) filter here — RLS (farms_read)
+      // determines which farms come back, and that now includes farms this
+      // user is an invited member of, not just ones they own.
       const { data: farmsRaw, error: farmsErr } = await supabase
-        .from('farms').select('*').eq('user_id', userId);
+        .from('farms').select('*');
       if (farmsErr) throw farmsErr;
 
       const farms = mapRows<Farm>(farmsRaw);
@@ -330,8 +336,8 @@ export const useDataStore = create<DataStore>()((set, get) => ({
   // ── Farms ─────────────────────────────────────────────────────────────────
 
   addFarm: async (userId, data) => {
-    const record: Farm = { ...data, id: uid(), createdAt: new Date().toISOString().slice(0, 10) };
-    const dbRow = { ...jsToDb(record as unknown as Record<string, unknown>), user_id: userId };
+    const record: Farm = { ...data, userId, id: uid(), createdAt: new Date().toISOString().slice(0, 10) };
+    const dbRow = jsToDb(record as unknown as Record<string, unknown>);
     const { error } = await supabase.from('farms').insert(dbRow);
     if (error) throw new Error(error.message);
     set((s) => ({ farms: [...s.farms, record] }));
@@ -569,16 +575,25 @@ export const useDataStore = create<DataStore>()((set, get) => ({
     if (existing) return existing;
 
     // Someone may have added a farm_users contact row with this email before
-    // it was ever linked to a real login (e.g. seeded during onboarding) —
-    // claim it instead of creating a duplicate.
+    // it was ever linked to a real login (e.g. seeded during onboarding, or
+    // an invite this person hasn't clicked-and-claimed via AcceptInvitePage
+    // yet) — claim it instead of creating a duplicate.
     const unclaimed = get().users.find((u) => u.farmId === farmId && !u.userId && u.email === email);
     if (unclaimed) {
       await get().updateUser(unclaimed.id, { userId: authUserId });
       return { ...unclaimed, userId: authUserId };
     }
 
+    // Fallback: no row exists at all for this person on this farm. This is
+    // meant for the real owner's very first login backfilling their own
+    // profile — now that invited (non-owner) members can also reach farms
+    // they don't own, only actually grant 'owner' here if they truly are
+    // this farm's owner; anyone else defaults to the safest non-privileged
+    // role rather than silently becoming owner of someone else's farm.
+    const farm = get().farms.find((f) => f.id === farmId);
+    const role = farm?.userId === authUserId ? 'owner' : 'operator';
     return get().addUser(farmId, {
-      userId: authUserId, name, email, role: 'owner', active: true,
+      userId: authUserId, name, email, role, active: true,
       lastLogin: new Date().toISOString().slice(0, 10),
     });
   },

@@ -10,6 +10,7 @@ import type {
 export const farms: Farm[] = [
   {
     id: 'farm-1',
+    userId: 'demo-owner-u-1',
     name: 'Riverdale Station',
     owner: 'James Mackenzie',
     type: 'mixed',
@@ -22,6 +23,7 @@ export const farms: Farm[] = [
   },
   {
     id: 'farm-2',
+    userId: 'demo-owner-u-6',
     name: 'Red Gum Grazing',
     owner: 'Sarah Thornton',
     type: 'livestock',

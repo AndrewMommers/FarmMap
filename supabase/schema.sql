@@ -261,7 +261,8 @@ CREATE TABLE IF NOT EXISTS farm_users (
   id         TEXT PRIMARY KEY,
   farm_id    TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
   -- Links this directory row to a real login, when one exists. Nullable:
-  -- most team members here are contacts entered by the owner, not logins.
+  -- a row with user_id = NULL is either a contact-only entry, or a pending
+  -- invite waiting to be claimed (see farm_users_claim_own_invite policy).
   user_id    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   name       TEXT NOT NULL,
   email      TEXT NOT NULL,
@@ -270,6 +271,11 @@ CREATE TABLE IF NOT EXISTS farm_users (
   avatar     TEXT,
   active     BOOLEAN DEFAULT TRUE,
   last_login TEXT,
+  -- Sparse per-resource override on top of the role's default permissions,
+  -- e.g. {"finance": "read"} grants this one person read access to finance
+  -- even though their role otherwise wouldn't. NULL = pure role defaults.
+  -- No owner-facing UI to edit this yet — see docs/FEATURES.md.
+  custom_permissions JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -345,32 +351,195 @@ ALTER TABLE announcements   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_tokens      ENABLE ROW LEVEL SECURITY; -- no policies — service_role only
 
--- Farms: owner only
-CREATE POLICY farms_owner ON farms FOR ALL USING (user_id = auth.uid());
+-- ── Access model ─────────────────────────────────────────────────────────────
+-- Two functions, called from every table's policies below, are the single
+-- source of truth for "who can do what" — see docs/versions/ for the design
+-- writeup. SECURITY DEFINER so they can read farms/farm_users without
+-- recursing into those tables' own RLS.
 
--- Helper: check if a farm belongs to the current user
--- All other tables reference farms via farm_id or indirectly via equipment_id
+-- Resolves the caller's role for a farm: 'owner' if they own it, their
+-- farm_users.role if they're an active member, NULL if neither (no access).
+CREATE OR REPLACE FUNCTION get_farm_role(check_farm_id TEXT)
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER STABLE AS $$
+  SELECT CASE
+    WHEN EXISTS (SELECT 1 FROM farms WHERE id = check_farm_id AND user_id = auth.uid()) THEN 'owner'
+    ELSE (SELECT role FROM farm_users WHERE farm_id = check_farm_id AND user_id = auth.uid() AND active = true LIMIT 1)
+  END;
+$$;
 
-CREATE POLICY paddocks_owner        ON paddocks        FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY livestock_mobs_owner  ON livestock_mobs  FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY livestock_animals_owner ON livestock_animals FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY crops_owner           ON crops           FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY spray_records_owner   ON spray_records   FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY equipment_owner       ON equipment       FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY maintenance_logs_owner ON maintenance_logs FOR ALL USING (equipment_id IN (SELECT id FROM equipment WHERE farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid())));
-CREATE POLICY transactions_owner    ON transactions    FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY budgets_owner         ON budgets         FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY inventory_owner       ON inventory       FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY tasks_owner           ON tasks           FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY farm_users_owner      ON farm_users      FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY devices_owner         ON devices         FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY geofence_events_owner ON geofence_events FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-CREATE POLICY announcements_owner   ON announcements   FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+-- The role permission matrix, encoded once. resource groups related tables
+-- (e.g. 'livestock' covers both livestock_mobs and livestock_animals);
+-- action is 'read' or 'write'. Checks a per-user custom_permissions override
+-- first, then falls back to the role default. Owner always passes.
+CREATE OR REPLACE FUNCTION has_farm_permission(check_farm_id TEXT, resource TEXT, action TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER STABLE AS $$
+DECLARE
+  r TEXT;
+  overrides JSONB;
+  override_val TEXT;
+BEGIN
+  r := get_farm_role(check_farm_id);
+  IF r IS NULL THEN RETURN false; END IF;
+  IF r = 'owner' THEN RETURN true; END IF;
 
--- Integration connections: farm owner can read/manage status rows, but never
--- the token vault above (integration_tokens has no policies at all).
-CREATE POLICY integration_connections_owner ON integration_connections FOR ALL
-  USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+  SELECT custom_permissions INTO overrides FROM farm_users
+    WHERE farm_id = check_farm_id AND user_id = auth.uid() AND active = true LIMIT 1;
+  IF overrides IS NOT NULL AND overrides ? resource THEN
+    override_val := overrides ->> resource;
+    RETURN override_val = 'write' OR (override_val = 'read' AND action = 'read');
+  END IF;
+
+  RETURN CASE resource
+    WHEN 'paddocks'      THEN r IN ('manager','operator') OR (action = 'read' AND r IN ('agronomist','accountant','readonly'))
+    WHEN 'livestock'     THEN r IN ('manager','operator') OR (action = 'read' AND r IN ('agronomist','accountant','readonly'))
+    WHEN 'crops'         THEN r IN ('manager','operator','agronomist') OR (action = 'read' AND r IN ('accountant','readonly'))
+    WHEN 'equipment'     THEN r IN ('manager','operator') OR (action = 'read' AND r IN ('agronomist','accountant','readonly'))
+    WHEN 'finance'       THEN r IN ('manager','accountant') OR (action = 'read' AND r IN ('operator','readonly'))
+    WHEN 'inventory'     THEN r IN ('manager','operator') OR (action = 'read' AND r IN ('agronomist','accountant','readonly'))
+    WHEN 'tasks'         THEN r IN ('manager','operator','agronomist') OR (action = 'read' AND r IN ('accountant','readonly'))
+    WHEN 'devices'       THEN r IN ('manager','operator') OR (action = 'read' AND r = 'readonly')
+    WHEN 'announcements' THEN true
+    WHEN 'team'          THEN action = 'read'
+    WHEN 'integrations'  THEN action = 'read' AND r = 'manager'
+    ELSE false
+  END;
+END;
+$$;
+
+-- Drop every policy this file has ever created, by name, so this script is
+-- safe to re-run against an already-deployed database — Postgres has no
+-- "CREATE POLICY IF NOT EXISTS".
+DROP POLICY IF EXISTS farms_owner ON farms;
+DROP POLICY IF EXISTS farms_read ON farms;
+DROP POLICY IF EXISTS farms_write ON farms;
+DROP POLICY IF EXISTS paddocks_owner ON paddocks;
+DROP POLICY IF EXISTS paddocks_read ON paddocks;
+DROP POLICY IF EXISTS paddocks_write ON paddocks;
+DROP POLICY IF EXISTS livestock_mobs_owner ON livestock_mobs;
+DROP POLICY IF EXISTS livestock_mobs_read ON livestock_mobs;
+DROP POLICY IF EXISTS livestock_mobs_write ON livestock_mobs;
+DROP POLICY IF EXISTS livestock_animals_owner ON livestock_animals;
+DROP POLICY IF EXISTS livestock_animals_read ON livestock_animals;
+DROP POLICY IF EXISTS livestock_animals_write ON livestock_animals;
+DROP POLICY IF EXISTS crops_owner ON crops;
+DROP POLICY IF EXISTS crops_read ON crops;
+DROP POLICY IF EXISTS crops_write ON crops;
+DROP POLICY IF EXISTS spray_records_owner ON spray_records;
+DROP POLICY IF EXISTS spray_records_read ON spray_records;
+DROP POLICY IF EXISTS spray_records_write ON spray_records;
+DROP POLICY IF EXISTS equipment_owner ON equipment;
+DROP POLICY IF EXISTS equipment_read ON equipment;
+DROP POLICY IF EXISTS equipment_write ON equipment;
+DROP POLICY IF EXISTS maintenance_logs_owner ON maintenance_logs;
+DROP POLICY IF EXISTS maintenance_logs_read ON maintenance_logs;
+DROP POLICY IF EXISTS maintenance_logs_write ON maintenance_logs;
+DROP POLICY IF EXISTS transactions_owner ON transactions;
+DROP POLICY IF EXISTS transactions_read ON transactions;
+DROP POLICY IF EXISTS transactions_write ON transactions;
+DROP POLICY IF EXISTS budgets_owner ON budgets;
+DROP POLICY IF EXISTS budgets_read ON budgets;
+DROP POLICY IF EXISTS budgets_write ON budgets;
+DROP POLICY IF EXISTS inventory_owner ON inventory;
+DROP POLICY IF EXISTS inventory_read ON inventory;
+DROP POLICY IF EXISTS inventory_write ON inventory;
+DROP POLICY IF EXISTS tasks_owner ON tasks;
+DROP POLICY IF EXISTS tasks_read ON tasks;
+DROP POLICY IF EXISTS tasks_write ON tasks;
+DROP POLICY IF EXISTS farm_users_owner ON farm_users;
+DROP POLICY IF EXISTS farm_users_read ON farm_users;
+DROP POLICY IF EXISTS farm_users_write ON farm_users;
+DROP POLICY IF EXISTS farm_users_claim_own_invite ON farm_users;
+DROP POLICY IF EXISTS devices_owner ON devices;
+DROP POLICY IF EXISTS devices_read ON devices;
+DROP POLICY IF EXISTS devices_write ON devices;
+DROP POLICY IF EXISTS geofence_events_owner ON geofence_events;
+DROP POLICY IF EXISTS geofence_events_access ON geofence_events;
+DROP POLICY IF EXISTS announcements_owner ON announcements;
+DROP POLICY IF EXISTS announcements_access ON announcements;
+DROP POLICY IF EXISTS integration_connections_owner ON integration_connections;
+DROP POLICY IF EXISTS integration_connections_read ON integration_connections;
+DROP POLICY IF EXISTS integration_connections_write ON integration_connections;
+
+-- Farms: any member can read; only the owner can rename/delete the farm itself.
+CREATE POLICY farms_read  ON farms FOR SELECT USING (user_id = auth.uid() OR get_farm_role(id) IS NOT NULL);
+CREATE POLICY farms_write ON farms FOR ALL    USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+-- Operational tables: role-gated read/write via has_farm_permission().
+CREATE POLICY paddocks_read  ON paddocks FOR SELECT USING (has_farm_permission(farm_id, 'paddocks', 'read'));
+CREATE POLICY paddocks_write ON paddocks FOR ALL    USING (has_farm_permission(farm_id, 'paddocks', 'write')) WITH CHECK (has_farm_permission(farm_id, 'paddocks', 'write'));
+
+CREATE POLICY livestock_mobs_read  ON livestock_mobs FOR SELECT USING (has_farm_permission(farm_id, 'livestock', 'read'));
+CREATE POLICY livestock_mobs_write ON livestock_mobs FOR ALL    USING (has_farm_permission(farm_id, 'livestock', 'write')) WITH CHECK (has_farm_permission(farm_id, 'livestock', 'write'));
+
+CREATE POLICY livestock_animals_read  ON livestock_animals FOR SELECT USING (has_farm_permission(farm_id, 'livestock', 'read'));
+CREATE POLICY livestock_animals_write ON livestock_animals FOR ALL    USING (has_farm_permission(farm_id, 'livestock', 'write')) WITH CHECK (has_farm_permission(farm_id, 'livestock', 'write'));
+
+CREATE POLICY crops_read  ON crops FOR SELECT USING (has_farm_permission(farm_id, 'crops', 'read'));
+CREATE POLICY crops_write ON crops FOR ALL    USING (has_farm_permission(farm_id, 'crops', 'write')) WITH CHECK (has_farm_permission(farm_id, 'crops', 'write'));
+
+CREATE POLICY spray_records_read  ON spray_records FOR SELECT USING (has_farm_permission(farm_id, 'crops', 'read'));
+CREATE POLICY spray_records_write ON spray_records FOR ALL    USING (has_farm_permission(farm_id, 'crops', 'write')) WITH CHECK (has_farm_permission(farm_id, 'crops', 'write'));
+
+CREATE POLICY equipment_read  ON equipment FOR SELECT USING (has_farm_permission(farm_id, 'equipment', 'read'));
+CREATE POLICY equipment_write ON equipment FOR ALL    USING (has_farm_permission(farm_id, 'equipment', 'write')) WITH CHECK (has_farm_permission(farm_id, 'equipment', 'write'));
+
+CREATE POLICY maintenance_logs_read  ON maintenance_logs FOR SELECT
+  USING (equipment_id IN (SELECT id FROM equipment WHERE has_farm_permission(farm_id, 'equipment', 'read')));
+CREATE POLICY maintenance_logs_write ON maintenance_logs FOR ALL
+  USING (equipment_id IN (SELECT id FROM equipment WHERE has_farm_permission(farm_id, 'equipment', 'write')))
+  WITH CHECK (equipment_id IN (SELECT id FROM equipment WHERE has_farm_permission(farm_id, 'equipment', 'write')));
+
+CREATE POLICY transactions_read  ON transactions FOR SELECT USING (has_farm_permission(farm_id, 'finance', 'read'));
+CREATE POLICY transactions_write ON transactions FOR ALL    USING (has_farm_permission(farm_id, 'finance', 'write')) WITH CHECK (has_farm_permission(farm_id, 'finance', 'write'));
+
+CREATE POLICY budgets_read  ON budgets FOR SELECT USING (has_farm_permission(farm_id, 'finance', 'read'));
+CREATE POLICY budgets_write ON budgets FOR ALL    USING (has_farm_permission(farm_id, 'finance', 'write')) WITH CHECK (has_farm_permission(farm_id, 'finance', 'write'));
+
+CREATE POLICY inventory_read  ON inventory FOR SELECT USING (has_farm_permission(farm_id, 'inventory', 'read'));
+CREATE POLICY inventory_write ON inventory FOR ALL    USING (has_farm_permission(farm_id, 'inventory', 'write')) WITH CHECK (has_farm_permission(farm_id, 'inventory', 'write'));
+
+CREATE POLICY tasks_read  ON tasks FOR SELECT USING (has_farm_permission(farm_id, 'tasks', 'read'));
+CREATE POLICY tasks_write ON tasks FOR ALL    USING (has_farm_permission(farm_id, 'tasks', 'write')) WITH CHECK (has_farm_permission(farm_id, 'tasks', 'write'));
+
+CREATE POLICY devices_read  ON devices FOR SELECT USING (has_farm_permission(farm_id, 'devices', 'read'));
+CREATE POLICY devices_write ON devices FOR ALL    USING (has_farm_permission(farm_id, 'devices', 'write')) WITH CHECK (has_farm_permission(farm_id, 'devices', 'write'));
+
+-- Announcements: every active member, any role, can read and post — the whole
+-- point is open team communication, so no read/write split is needed.
+CREATE POLICY announcements_access ON announcements FOR ALL
+  USING (has_farm_permission(farm_id, 'announcements', 'write')) WITH CHECK (has_farm_permission(farm_id, 'announcements', 'write'));
+
+-- Geofence events: system-logged device telemetry, not a user-facing write
+-- surface with role nuance — any active member can read/write.
+CREATE POLICY geofence_events_access ON geofence_events FOR ALL
+  USING (get_farm_role(farm_id) IS NOT NULL) WITH CHECK (get_farm_role(farm_id) IS NOT NULL);
+
+-- Team directory: every member can see who's on the team; only the owner can
+-- invite, edit roles, or remove anyone — team roster changes are identity-
+-- adjacent, not operational data, so this is NOT role-gated like the tables
+-- above (a 'manager' does not get to add or remove other members).
+CREATE POLICY farm_users_read  ON farm_users FOR SELECT USING (get_farm_role(farm_id) IS NOT NULL);
+CREATE POLICY farm_users_write ON farm_users FOR ALL
+  USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()))
+  WITH CHECK (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+
+-- Lets a freshly-authenticated invitee claim the one unlinked farm_users row
+-- that matches their own verified JWT email — nothing else. This is what
+-- lets AcceptInvitePage link a new login to its farm_users row without
+-- needing a second privileged (service_role) round-trip.
+CREATE POLICY farm_users_claim_own_invite ON farm_users
+  FOR UPDATE
+  USING (user_id IS NULL AND LOWER(email) = LOWER(auth.jwt() ->> 'email'))
+  WITH CHECK (user_id = auth.uid() AND LOWER(email) = LOWER(auth.jwt() ->> 'email'));
+
+-- Integration connections: farm owner can read/manage status rows; managers
+-- get read-only visibility. Never the token vault above (integration_tokens
+-- has no policies at all, regardless of role).
+CREATE POLICY integration_connections_read  ON integration_connections FOR SELECT
+  USING (has_farm_permission(farm_id, 'integrations', 'read') OR farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+CREATE POLICY integration_connections_write ON integration_connections FOR ALL
+  USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()))
+  WITH CHECK (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 
 -- ============================================================
 -- Migrations — safe to re-run against an already-deployed database.
@@ -392,6 +561,7 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_id       TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_status    TEXT;
 
 ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS custom_permissions JSONB;
 
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location    JSONB;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location_at TIMESTAMPTZ;

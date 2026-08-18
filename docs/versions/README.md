@@ -23,6 +23,7 @@ This complements — but doesn't replace — `git log`, which has the exact comm
 | 15 | [Landing page animation](15-landing-page-animation.md) | Scroll-reveal and ambient motion, built failure-safe |
 | 16 | [Landing page visual polish](16-landing-page-visual-polish.md) | Gradient text, glow accents, ambient texture, colour-coded compliance rows |
 | 17 | [Portal completeness, notifications, Farm Chat](17-portal-completeness-and-notifications.md) | Punch-list cleanup, full notification system, Farm Chat, a demo-mode bug fix, and a landing page update |
+| 18 | [Team invitations & role-based access control](18-team-invites-and-rbac.md) | Real invite flow with its own login, enforced RBAC via RLS, per-user permission overrides (data model now, editing UI to follow) |
 
 ## Conventions going forward
 

@@ -8,6 +8,7 @@ import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddInventoryItemModal } from '../components/modals/AddInventoryItemModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useTableSort, applySortFn } from '../hooks/useTableSort';
 import { downloadCSV, downloadPDF } from '../lib/export';
@@ -32,6 +33,7 @@ const CATEGORY_COLORS: Record<InventoryCategory, string> = {
 
 export function InventoryPage() {
   const { inventory } = useFarmData();
+  const canWriteInventory = useCanWrite('inventory');
   const deleteInventoryItem = useDataStore((s) => s.deleteInventoryItem);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -114,9 +116,11 @@ export function InventoryPage() {
         actions={
           <>
             <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
-            <button className="btn-primary" onClick={() => setShowAddItem(true)}>
-              <Plus className="w-4 h-4" /> Add Item
-            </button>
+            {canWriteInventory && (
+              <button className="btn-primary" onClick={() => setShowAddItem(true)}>
+                <Plus className="w-4 h-4" /> Add Item
+              </button>
+            )}
           </>
         }
       />
@@ -197,10 +201,12 @@ export function InventoryPage() {
                   <td className="table-cell font-semibold">{item.costPerUnit ? formatCurrency(item.costPerUnit * item.quantity) : '—'}</td>
                   <td className="table-cell text-xs">{formatDate(item.expiryDate)}</td>
                   <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit item" onClick={() => setEditingItem(item)}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete item" onClick={() => handleDelete(item.id, item.name)}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
+                    {canWriteInventory && (
+                      <div className="flex gap-1">
+                        <button className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit item" onClick={() => setEditingItem(item)}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete item" onClick={() => handleDelete(item.id, item.name)}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

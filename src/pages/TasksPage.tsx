@@ -8,6 +8,7 @@ import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddTaskModal } from '../components/modals/AddTaskModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
+import { useCanWrite } from '../lib/permissions';
 import { formatDate } from '../lib/utils';
 import { downloadCSV, downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
@@ -18,6 +19,7 @@ const PRIORITY_ORDER: TaskPriority[] = ['critical', 'high', 'medium', 'low'];
 
 export function TasksPage() {
   const { tasks, paddocks, equipment } = useFarmData();
+  const canWriteTasks = useCanWrite('tasks');
   const updateTaskStatus = useDataStore((s) => s.updateTaskStatus);
   const deleteTask = useDataStore((s) => s.deleteTask);
   const [search, setSearch] = useState('');
@@ -108,9 +110,11 @@ export function TasksPage() {
         actions={
           <>
             <ExportMenu onCSV={handleExportCSV} onPDF={handleExportPDF} />
-            <button className="btn-primary" onClick={() => setShowAddTask(true)}>
-              <Plus className="w-4 h-4" /> New Task
-            </button>
+            {canWriteTasks && (
+              <button className="btn-primary" onClick={() => setShowAddTask(true)}>
+                <Plus className="w-4 h-4" /> New Task
+              </button>
+            )}
           </>
         }
       />
@@ -150,7 +154,10 @@ export function TasksPage() {
       <div className="space-y-3">
         {filtered.map(task => (
           <div key={task.id} className={`card flex items-start gap-4 ${task.status === 'overdue' ? 'border-red-200 bg-red-50/30' : task.status === 'done' ? 'opacity-60' : ''}`}>
-            <button onClick={() => task.status !== 'done' && markDone(task.id)} className="mt-0.5 flex-shrink-0 hover:scale-110 transition-transform">
+            <button
+              onClick={() => canWriteTasks && task.status !== 'done' && markDone(task.id)}
+              className={`mt-0.5 flex-shrink-0 transition-transform ${canWriteTasks ? 'hover:scale-110' : 'cursor-default'}`}
+            >
               <StatusIcon status={task.status} />
             </button>
             <div className="flex-1 min-w-0">
@@ -168,13 +175,15 @@ export function TasksPage() {
               </div>
               {task.notes && <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 inline-block">{task.notes}</p>}
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {task.status !== 'done' && (
-                <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => markDone(task.id)}>Done</button>
-              )}
-              <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => setEditingTask(task)}>Edit</button>
-              <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete task" onClick={() => handleDelete(task.id, task.title)}><Trash2 className="w-4 h-4" /></button>
-            </div>
+            {canWriteTasks && (
+              <div className="flex gap-2 flex-shrink-0">
+                {task.status !== 'done' && (
+                  <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => markDone(task.id)}>Done</button>
+                )}
+                <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => setEditingTask(task)}>Edit</button>
+                <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete task" onClick={() => handleDelete(task.id, task.title)}><Trash2 className="w-4 h-4" /></button>
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && (

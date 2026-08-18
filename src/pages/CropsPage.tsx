@@ -6,12 +6,14 @@ import { StatCard } from '../components/ui/StatCard';
 import { RecordYieldModal } from '../components/modals/RecordYieldModal';
 import { AddCropModal } from '../components/modals/AddCropModal';
 import { useFarmData } from '../hooks/useFarmData';
+import { useCanWrite } from '../lib/permissions';
 import { formatDate } from '../lib/utils';
 import { Plus, Sprout, Droplets } from 'lucide-react';
 import type { CropRecord } from '../types';
 
 export function CropsPage() {
   const { crops, sprayRecords, paddocks } = useFarmData();
+  const canWriteCrops = useCanWrite('crops');
   const [tab, setTab] = useState<'crops' | 'spray'>('crops');
   const [search, setSearch] = useState('');
   const [yieldCrop, setYieldCrop] = useState<CropRecord | undefined>();
@@ -40,9 +42,11 @@ export function CropsPage() {
         title="Crops & Agronomy"
         subtitle="Crop records, spray logs & paddock history"
         actions={
-          <button className="btn-primary" onClick={() => setShowAddCrop(true)}>
-            <Plus className="w-4 h-4" /> New Crop Record
-          </button>
+          canWriteCrops ? (
+            <button className="btn-primary" onClick={() => setShowAddCrop(true)}>
+              <Plus className="w-4 h-4" /> New Crop Record
+            </button>
+          ) : undefined
         }
       />
 
@@ -90,7 +94,7 @@ export function CropsPage() {
                 </div>
                 <div className="mt-4 flex gap-2">
                   <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => { setTab('spray'); setSearch(c.cropName); }}>Spray Log</button>
-                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setYieldCrop(c)}>Record Yield</button>
+                  {canWriteCrops && <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setYieldCrop(c)}>Record Yield</button>}
                 </div>
               </div>
             );

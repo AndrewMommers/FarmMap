@@ -10,6 +10,9 @@ export type State = 'NSW' | 'VIC' | 'QLD' | 'SA' | 'WA' | 'TAS' | 'NT' | 'ACT';
 
 export interface Farm {
   id: string;
+  /** The farm's actual owner — the Supabase Auth user ID `farms.user_id` is
+   *  keyed on. Distinct from `owner` below, which is just a display name. */
+  userId: string;
   name: string;
   owner: string;
   type: FarmType;
@@ -272,11 +275,20 @@ export interface RainfallSummary {
 
 export type UserRole = 'owner' | 'manager' | 'operator' | 'agronomist' | 'accountant' | 'readonly';
 
+/** Resource groupings the role-permission matrix is keyed on — mirrors the
+ *  `resource` strings the has_farm_permission() Postgres function switches
+ *  on in supabase/schema.sql. Keep these in sync. */
+export type PermissionResource =
+  | 'paddocks' | 'livestock' | 'crops' | 'equipment' | 'finance' | 'inventory'
+  | 'tasks' | 'devices' | 'announcements' | 'team' | 'integrations';
+
+export type PermissionLevel = 'read' | 'write' | 'none';
+
 export interface User {
   id: string;
   farmId: string;
   /** Links this team-directory row to a real Supabase Auth account, when one exists.
-   *  Unset for teammates who are contacts only (no login of their own yet). */
+   *  Unset for teammates who are contacts only, or a pending invite not yet accepted. */
   userId?: string;
   name: string;
   email: string;
@@ -286,6 +298,9 @@ export interface User {
   avatar?: string;
   active: boolean;
   lastLogin?: string;
+  /** Sparse per-resource override on top of the role's default permissions.
+   *  No owner-facing UI to edit this yet — see docs/FEATURES.md. */
+  customPermissions?: Partial<Record<PermissionResource, PermissionLevel>>;
 }
 
 // ─── Announcements ──────────────────────────────────────────────────────────

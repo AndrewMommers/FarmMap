@@ -50,9 +50,10 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Edit team member (name, phone, role, active status) | ✅ | Blocked in demo mode with a clear message |
-| Invite / add team member | ❌ | `addUser` exists in the data layer but nothing in the UI calls it — button still says "coming in full release" ([#19](https://github.com/AndrewMommers/FarmMap/issues/19)) |
-| Roles (owner/manager/operator/agronomist/accountant/readonly) | ✅ | Defined and editable, not yet permission-enforced beyond display |
+| Edit team member (name, phone, role, active status) | ✅ | Blocked in demo mode with a clear message; owner-only |
+| Invite team member (real login + farm access) | ✅ | Owner enters name/email/role → `invite-user` Edge Function upserts a `farm_users` row and sends a real Supabase invite email; the invitee sets a password on `/accept-invite` and is linked to the farm via a self-claim RLS policy. Pending invites show a "Pending" badge until claimed |
+| Roles (owner/manager/operator/agronomist/accountant/readonly) | ✅ | Enforced server-side — every operational table has read/write RLS policies driven by `has_farm_permission()`, not just a display label. Mirrored client-side in `src/lib/permissions.ts` to hide actions a role can't perform |
+| Per-user custom permission overrides | 🚧 | `farm_users.custom_permissions` (JSONB) and the enforcement logic ship now — a sparse per-resource override checked before role defaults. No owner/staff-facing UI to edit it yet ([#23](https://github.com/AndrewMommers/FarmMap/issues/23)) |
 | My Profile (avatar, name, phone) | ✅ | |
 
 ## Account & authentication

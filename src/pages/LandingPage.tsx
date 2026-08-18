@@ -5,7 +5,7 @@ import { useDataStore } from '../store/dataStore';
 import {
   Wheat, Map, Beef, Sprout, Wrench, DollarSign, Package, CloudRain,
   CheckSquare, FileBarChart, ShieldCheck, Tractor, PlayCircle, ArrowRight,
-  Menu, X, Check, Landmark, Zap, RefreshCw, MapPin, Users, Compass,
+  Menu, X, Check, Landmark, Zap, RefreshCw, MapPin, Users, Compass, BadgeCheck,
 } from 'lucide-react';
 
 const INTEGRATIONS = [
@@ -67,6 +67,44 @@ function ContourLines({ className, color }: { className?: string; color: string 
   );
 }
 
+// Seal mark: circular "Australian Owned" stamp with the Southern Cross
+// (Crux) picked out in dots — the constellation on the flag, not the flag
+// itself, so it reads as a badge rather than a decoration lifted wholesale.
+function SovereignSeal({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 200 200" className={className} aria-hidden="true">
+      <circle cx="100" cy="100" r="92" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="100" cy="100" r="76" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 5" opacity="0.6" />
+      <defs>
+        <path id="sealTop" d="M 26,104 A 74,74 0 0 1 174,104" fill="none" />
+        <path id="sealBottom" d="M 26,100 A 74,74 0 0 0 174,100" fill="none" />
+      </defs>
+      <text fontSize="11.5" fontWeight="700" letterSpacing="3" fill="currentColor">
+        <textPath href="#sealTop" startOffset="50%" textAnchor="middle">AUSTRALIAN OWNED</textPath>
+      </text>
+      <text fontSize="11.5" fontWeight="700" letterSpacing="3" fill="currentColor">
+        <textPath href="#sealBottom" startOffset="50%" textAnchor="middle">SOVEREIGN SOFTWARE</textPath>
+      </text>
+      {/* Southern Cross (Crux) — elongated kite, not a symmetric diamond:
+          Gacrux (top), Acrux (bottom, brightest), Becrux (right arm),
+          Decrux (left arm, higher than the right), Epsilon (small, off-axis) */}
+      <g stroke="currentColor" strokeWidth="1" opacity="0.45">
+        <line x1="99" y1="42" x2="138" y2="110" />
+        <line x1="138" y1="110" x2="113" y2="158" />
+        <line x1="113" y1="158" x2="76" y2="92" />
+        <line x1="76" y1="92" x2="99" y2="42" />
+      </g>
+      <g fill="currentColor">
+        <circle cx="99" cy="42" r="3.5" />
+        <circle cx="138" cy="110" r="4" />
+        <circle cx="113" cy="158" r="5" />
+        <circle cx="76" cy="92" r="3.5" />
+        <circle cx="103" cy="128" r="2" />
+      </g>
+    </svg>
+  );
+}
+
 function Eyebrow({ icon: Icon, children, tone = 'dark' }: { icon: typeof Wheat; children: React.ReactNode; tone?: 'dark' | 'light' | 'earth' }) {
   const toneClass = {
     dark: 'bg-white/10 text-farm-200',
@@ -108,6 +146,7 @@ export function LandingPage() {
             <a href="#tractor-mode" className="hover:text-farm-700 dark:hover:text-farm-400">Tractor Mode</a>
             <a href="#integrations" className="hover:text-farm-700 dark:hover:text-farm-400">Integrations</a>
             <a href="#compliance" className="hover:text-farm-700 dark:hover:text-farm-400">Compliance</a>
+            <a href="#australian-owned" className="hover:text-farm-700 dark:hover:text-farm-400">Aussie Owned</a>
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
@@ -135,6 +174,7 @@ export function LandingPage() {
             <a href="#tractor-mode" onClick={() => setMenuOpen(false)}>Tractor Mode</a>
             <a href="#integrations" onClick={() => setMenuOpen(false)}>Integrations</a>
             <a href="#compliance" onClick={() => setMenuOpen(false)}>Compliance</a>
+            <a href="#australian-owned" onClick={() => setMenuOpen(false)}>Aussie Owned</a>
             <Link to="/login" onClick={() => setMenuOpen(false)} className="font-semibold text-farm-700 dark:text-farm-400">Sign In</Link>
             <Link to="/login" onClick={() => setMenuOpen(false)} className="btn-primary justify-center">Get Started</Link>
           </div>
@@ -394,6 +434,38 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ── Australian Owned ────────────────────────────────────────────── */}
+      <section id="australian-owned" className="border-t border-farm-100 dark:border-gray-800">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+          <div className="order-2 lg:order-1 flex justify-center">
+            <SovereignSeal className="w-56 h-56 sm:w-64 sm:h-64 text-farm-700 dark:text-farm-400" />
+          </div>
+          <div className="order-1 lg:order-2">
+            <Eyebrow icon={BadgeCheck} tone="light">Australian Owned &amp; Operated</Eyebrow>
+            <h2 className="font-display text-4xl font-bold tracking-tight text-balance">
+              Aussie owned. Aussie built. Aussie run.
+            </h2>
+            <p className="mt-4 text-gray-500 dark:text-gray-400">
+              FarmMap isn't a rebadged overseas platform — it's designed, built and supported right
+              here in Australia, by people who know the difference between a header and a harvester.
+            </p>
+            <ul className="mt-6 space-y-3">
+              {[
+                'Australian owned and operated — not a reseller, not a rebrand',
+                'Your data is hosted on Australian servers, governed by Australian privacy law',
+                'Built around hectares, AUD, GST, NLIS and PIC from day one — not bolted on afterward',
+                'Support from people who know what a mob, a header and a withholding period actually are',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+                  <Check className="w-4 h-4 text-farm-600 mt-0.5 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-farm-50 dark:bg-gray-900/40 border-t border-farm-100 dark:border-gray-800">
         <ContourLines className="absolute inset-0 w-full h-full opacity-[0.35] dark:opacity-[0.08] pointer-events-none" color="#86efac" />
@@ -428,8 +500,11 @@ export function LandingPage() {
             </span>
             FarmMap
           </a>
-          <p className="text-sm text-gray-400">
-            &copy; {new Date().getFullYear()} FarmMap &middot; Built for Australian farmers
+          <p className="text-sm text-gray-400 text-center sm:text-right">
+            &copy; {new Date().getFullYear()} FarmMap &middot; Australian owned &amp; operated
+            <br className="sm:hidden" />
+            <span className="hidden sm:inline"> &middot; </span>
+            Built for Australian farmers
           </p>
         </div>
       </footer>

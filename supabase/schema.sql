@@ -545,7 +545,21 @@ CREATE POLICY geofence_events_access ON geofence_events FOR ALL
 -- invite, edit roles, or remove anyone — team roster changes are identity-
 -- adjacent, not operational data, so this is NOT role-gated like the tables
 -- above (a 'manager' does not get to add or remove other members).
-CREATE POLICY farm_users_read  ON farm_users FOR SELECT USING (get_farm_role(farm_id) IS NOT NULL);
+--
+-- The extra OR clauses exist for the claim policy below to actually work:
+-- Postgres RLS gates UPDATE on an applicable SELECT policy for BOTH the old
+-- row (pre-update) and the new row (post-update, as part of WITH CHECK) —
+-- independent of the UPDATE policy's own USING/WITH CHECK. A fresh invitee
+-- can't see their own row via get_farm_role() either before claiming (not a
+-- member yet) or immediately after (get_farm_role does its own subquery,
+-- which can't see this same statement's not-yet-committed update), so both
+-- states need their own direct, non-subquery clause here: "it's unclaimed
+-- and addressed to me" (pre-claim) and "it's now literally mine" (post-claim).
+CREATE POLICY farm_users_read  ON farm_users FOR SELECT USING (
+  get_farm_role(farm_id) IS NOT NULL
+  OR user_id = auth.uid()
+  OR (user_id IS NULL AND LOWER(email) = LOWER(auth.jwt() ->> 'email'))
+);
 CREATE POLICY farm_users_write ON farm_users FOR ALL
   USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()))
   WITH CHECK (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));

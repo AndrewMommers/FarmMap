@@ -4,9 +4,9 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { RecordYieldModal } from '../components/modals/RecordYieldModal';
+import { AddCropModal } from '../components/modals/AddCropModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { formatDate } from '../lib/utils';
-import toast from 'react-hot-toast';
 import { Plus, Sprout, Droplets } from 'lucide-react';
 import type { CropRecord } from '../types';
 
@@ -15,6 +15,7 @@ export function CropsPage() {
   const [tab, setTab] = useState<'crops' | 'spray'>('crops');
   const [search, setSearch] = useState('');
   const [yieldCrop, setYieldCrop] = useState<CropRecord | undefined>();
+  const [showAddCrop, setShowAddCrop] = useState(false);
 
   const activeCrops = crops.filter(c => c.status === 'growing' || c.status === 'planted');
   const harvestedCrops = crops.filter(c => c.status === 'harvested');
@@ -34,11 +35,12 @@ export function CropsPage() {
   return (
     <div className="space-y-6">
       <RecordYieldModal open={!!yieldCrop} onClose={() => setYieldCrop(undefined)} crop={yieldCrop} />
+      <AddCropModal open={showAddCrop} onClose={() => setShowAddCrop(false)} />
       <PageHeader
         title="Crops & Agronomy"
         subtitle="Crop records, spray logs & paddock history"
         actions={
-          <button className="btn-primary" onClick={() => toast.success('New crop record – coming in full release')}>
+          <button className="btn-primary" onClick={() => setShowAddCrop(true)}>
             <Plus className="w-4 h-4" /> New Crop Record
           </button>
         }

@@ -70,6 +70,7 @@ interface DataStore {
   deleteLivestockAnimal: (id: string) => void;
 
   // ── Crops & Spray Records ───────────────────────────────────────────────────
+  addCrop: (farmId: string, data: Omit<CropRecord, 'id' | 'farmId'>) => CropRecord;
   updateCrop: (id: string, data: Partial<Omit<CropRecord, 'id' | 'farmId'>>) => void;
   addSprayRecord: (farmId: string, data: Omit<SprayRecord, 'id' | 'farmId'>) => SprayRecord;
 
@@ -117,7 +118,7 @@ const EMPTY: Omit<DataStore,
   'addMapFeature' | 'deleteMapFeature' |
   'addLivestockMob' | 'addLivestockAnimal' |
   'updateLivestockMob' | 'updateLivestockAnimal' | 'deleteLivestockMob' | 'deleteLivestockAnimal' |
-  'updateCrop' | 'addSprayRecord' |
+  'addCrop' | 'updateCrop' | 'addSprayRecord' |
   'addTask' | 'updateTaskStatus' | 'updateTask' | 'deleteTask' |
   'addTransaction' | 'updateTransaction' | 'deleteTransaction' | 'addInventoryItem' |
   'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
@@ -409,6 +410,13 @@ export const useDataStore = create<DataStore>()((set, get) => ({
 
   // ── Crops & Spray Records ────────────────────────────────────────────────
 
+  addCrop: (farmId, data) => {
+    const record: CropRecord = { ...data, id: uid(), farmId };
+    set((s) => ({ crops: [record, ...s.crops] }));
+    supabase.from('crops').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addCrop:', error.message); });
+    return record;
+  },
   updateCrop: (id, data) => {
     set((s) => ({ crops: s.crops.map((c) => c.id === id ? { ...c, ...data } : c) }));
     supabase.from('crops').update(jsToDb(data as Record<string, unknown>)).eq('id', id)

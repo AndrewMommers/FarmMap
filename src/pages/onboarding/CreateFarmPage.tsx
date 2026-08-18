@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useDataStore } from '../../store/dataStore';
 import type { FarmType, State } from '../../types';
 import { Wheat, MapPin, Loader2, ArrowLeft, LogOut } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const FARM_TYPES: { value: FarmType; label: string }[] = [
   { value: 'mixed',       label: 'Mixed Farming' },
@@ -29,7 +30,13 @@ export function CreateFarmPage() {
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    await signOut();
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('[CreateFarmPage] Sign out failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Sign out failed — check your connection and try again');
+      setSigningOut(false);
+    }
   };
 
   const [form, setForm] = useState({

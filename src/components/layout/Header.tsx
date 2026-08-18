@@ -1,12 +1,15 @@
 import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   Menu, Bell, Sun, Cloud, CloudRain, CloudDrizzle, CloudLightning, CloudFog,
   Snowflake, Tractor, Moon, LogOut, FlaskConical, Wind,
   AlertCircle, AlertTriangle, Info, Package, Wrench, CheckSquare,
-  CircleUser, Settings as SettingsIcon, ChevronDown,
+  CircleUser, Settings as SettingsIcon, ChevronDown, X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
+import type { NotificationPrefs } from '../../store/appStore';
+import { showBrowserNotification } from '../../lib/pushNotifications';
 import { useTractorStore } from '../../store/tractorStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
@@ -15,9 +18,11 @@ import { useFarmData } from '../../hooks/useFarmData';
 import { useWeather, wmoLabel, wmoCategory } from '../../hooks/useWeather';
 import { useNotifications } from '../../hooks/useNotifications';
 import { clearWeatherCache } from '../../hooks/useWeatherHistory';
-import { getInitials } from '../../lib/utils';
+import { getInitials, timeAgo } from '../../lib/utils';
 import type { FarmNotification, NotifPriority, NotifType } from '../../hooks/useNotifications';
 import { FarmSwitcher } from './FarmSwitcher';
+import { NotificationDetailModal } from '../modals/NotificationDetailModal';
+import type { Announcement } from '../../types';
 
 // ─── Weather icon ─────────────────────────────────────────────────────────────
 
@@ -53,14 +58,49 @@ const TYPE_ICON: Record<NotifType, typeof AlertCircle> = {
   equipment: Wrench,
 };
 
+/** Pops a live toast for a newly-appeared alert — click to open its detail modal, or dismiss. */
+function showAlertToast(a: FarmNotification, onOpen: () => void) {
+  const PIcon = PRIORITY_ICON[a.priority];
+  toast.custom(
+    (t) => (
+      <div
+        className={`max-w-sm w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg pointer-events-auto flex items-start gap-3 px-4 py-3 cursor-pointer transition-opacity ${t.visible ? 'opacity-100' : 'opacity-0'}`}
+        onClick={() => { onOpen(); toast.dismiss(t.id); }}
+      >
+        <PIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PRIORITY_COLOR[a.priority]}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.message}</p>
+          {a.detail && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.detail}</p>}
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
+          className="p-0.5 rounded text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 flex-shrink-0"
+          aria-label="Dismiss"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    ),
+    { duration: 8000 },
+  );
+}
+
 function NotificationDropdown({
   alerts,
+  announcements,
   onClose,
+  onSelect,
+  onPostAnnouncement,
 }: {
   alerts: FarmNotification[];
+  announcements: Announcement[];
   onClose: () => void;
+  onSelect: (n: FarmNotification) => void;
+  onPostAnnouncement: (message: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'alerts' | 'announcements'>('alerts');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -70,6 +110,12 @@ function NotificationDropdown({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
+  const handlePost = () => {
+    if (!message.trim()) return;
+    onPostAnnouncement(message.trim());
+    setMessage('');
+  };
+
   return (
     <div
       ref={ref}
@@ -77,41 +123,93 @@ function NotificationDropdown({
     >
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Notifications</h3>
-        {alerts.length > 0 && (
+        {tab === 'alerts' && alerts.length > 0 && (
           <span className="text-xs text-gray-400">{alerts.length} alert{alerts.length > 1 ? 's' : ''}</span>
         )}
       </div>
 
-      {alerts.length === 0 ? (
-        <div className="px-4 py-8 text-center text-gray-400">
-          <CheckSquare className="w-8 h-8 mx-auto mb-2 text-farm-300" />
-          <p className="text-sm font-medium">All clear — nothing needs attention</p>
-        </div>
+      <div className="flex px-2 pt-2 gap-1">
+        {([
+          { key: 'alerts', label: 'Alerts' },
+          { key: 'announcements', label: 'Announcements' },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              tab === t.key ? 'bg-farm-700 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'alerts' ? (
+        alerts.length === 0 ? (
+          <div className="px-4 py-8 text-center text-gray-400">
+            <CheckSquare className="w-8 h-8 mx-auto mb-2 text-farm-300" />
+            <p className="text-sm font-medium">All clear — nothing needs attention</p>
+          </div>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800 mt-2">
+            {alerts.map((a) => {
+              const PIcon = PRIORITY_ICON[a.priority];
+              const TIcon = TYPE_ICON[a.type];
+              return (
+                <li key={a.id}>
+                  <button
+                    onClick={() => { onSelect(a); onClose(); }}
+                    className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+                  >
+                    <PIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PRIORITY_COLOR[a.priority]}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.message}</p>
+                      {a.detail && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.detail}</p>
+                      )}
+                    </div>
+                    <TIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-300 dark:text-gray-600" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )
       ) : (
-        <ul className="max-h-80 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
-          {alerts.map((a) => {
-            const PIcon = PRIORITY_ICON[a.priority];
-            const TIcon = TYPE_ICON[a.type];
-            return (
-              <li key={a.id}>
-                <Link
-                  to={a.to}
-                  onClick={onClose}
-                  className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                >
-                  <PIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PRIORITY_COLOR[a.priority]}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.message}</p>
-                    {a.detail && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.detail}</p>
-                    )}
+        <div className="mt-2">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex gap-2">
+            <input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }}
+              placeholder="Post an update for the team…"
+              className="input text-xs py-2 flex-1"
+              maxLength={280}
+            />
+            <button onClick={handlePost} disabled={!message.trim()} className="btn-primary text-xs px-3 disabled:opacity-40">
+              Post
+            </button>
+          </div>
+          {announcements.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-400">
+              <p className="text-sm font-medium">No announcements yet</p>
+              <p className="text-xs mt-1">Post one above — everyone on this farm will see it.</p>
+            </div>
+          ) : (
+            <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
+              {announcements.map((a) => (
+                <li key={a.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.authorName}</p>
+                    <p className="text-xs text-gray-400 flex-shrink-0">{timeAgo(a.createdAt)}</p>
                   </div>
-                  <TIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-300 dark:text-gray-600" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                  <p className="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{a.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -185,20 +283,50 @@ function ProfileDropdown({
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
+const NOTIF_TYPE_PREF: Record<NotifType, keyof NotificationPrefs> = {
+  task: 'taskOverdue', inventory: 'lowStock', equipment: 'equipmentService',
+};
+
 export function Header() {
-  const { toggleSidebar, demoMode, setDemoMode } = useAppStore();
+  const { toggleSidebar, demoMode, setDemoMode, notificationPrefs, activeFarmId } = useAppStore();
   const { toggle: toggleTractor, tractorMode } = useTractorStore();
   const { dark, toggle: toggleDark } = useThemeStore();
   const { user, signOut } = useAuthStore();
   const clearData = useDataStore((s) => s.clearData);
+  const addAnnouncement = useDataStore((s) => s.addAnnouncement);
 
-  const { farm, paddocks, users } = useFarmData();
+  const { farm, paddocks, users, announcements } = useFarmData();
   const firstCoords = paddocks.find((p) => p.coordinates)?.coordinates;
   const { weather, loading: weatherLoading } = useWeather(farm?.address, firstCoords);
   const { alerts, count: notifCount } = useNotifications();
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [selectedNotif, setSelectedNotif] = useState<FarmNotification | undefined>();
+
+  // ── Live toast pop-ups for newly-appearing alerts ─────────────────────────
+  // Baselines silently on first render (no toast storm for pre-existing
+  // overdue tasks on page load) — only pops a toast for alerts that appear
+  // *after* that, e.g. an edit that pushes a task overdue or stock below
+  // the minimum while the user is already in the app.
+  const seenAlertIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const currentIds = new Set(alerts.map((a) => a.id));
+    if (seenAlertIds.current === null) {
+      seenAlertIds.current = currentIds;
+      return;
+    }
+    const newAlerts = alerts.filter((a) => !seenAlertIds.current!.has(a.id));
+    for (const a of newAlerts) {
+      if (!notificationPrefs[NOTIF_TYPE_PREF[a.type]]) continue;
+      showAlertToast(a, () => setSelectedNotif(a));
+      if (notificationPrefs.browserPush) {
+        showBrowserNotification(a.message, a.detail, a.id).catch(() => {});
+      }
+    }
+    seenAlertIds.current = currentIds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts]);
 
   const handleSignOut = () => {
     clearWeatherCache(); // purge cached weather so next farm/user fetches fresh data
@@ -223,6 +351,7 @@ export function Header() {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-farm-100 dark:border-gray-800 flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-10">
+      <NotificationDetailModal open={!!selectedNotif} onClose={() => setSelectedNotif(undefined)} notification={selectedNotif} />
       <button
         onClick={toggleSidebar}
         className="p-2 rounded-xl hover:bg-farm-50 dark:hover:bg-gray-800 text-gray-500 transition-colors"
@@ -309,7 +438,16 @@ export function Header() {
           )}
         </button>
         {showNotifs && (
-          <NotificationDropdown alerts={alerts} onClose={() => setShowNotifs(false)} />
+          <NotificationDropdown
+            alerts={alerts}
+            announcements={announcements}
+            onClose={() => setShowNotifs(false)}
+            onSelect={setSelectedNotif}
+            onPostAnnouncement={(message) => {
+              addAnnouncement(activeFarmId, { authorName: displayName, message });
+              toast.success('Posted to the team');
+            }}
+          />
         )}
       </div>
 

@@ -12,10 +12,12 @@ import { supabase } from '../lib/supabase';
 import { formatDate, getInitials, timeAgo } from '../lib/utils';
 import { findContainingPaddock, formatCoords } from '../lib/geo';
 import { downloadJSON, parseCSV } from '../lib/export';
+import { getNotificationPermission, requestNotificationPermission, isNotificationSupported } from '../lib/pushNotifications';
 import toast from 'react-hot-toast';
 import {
   Plus, Settings, Users, Bell, Globe, Database, Shield, Tractor, RefreshCw, Unplug,
   Landmark, Zap, CircleUser, Smartphone, RotateCcw, Trash2, MapPin, LogIn, LogOut as LogOutIcon,
+  BellRing, BellOff,
 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { EditUserModal } from '../components/modals/EditUserModal';
@@ -42,12 +44,24 @@ export function SettingsPage() {
   const updateFarm = useDataStore((s) => s.updateFarm);
   const updateUser = useDataStore((s) => s.updateUser);
   const addTransaction = useDataStore((s) => s.addTransaction);
-  const { activeFarmId, demoMode } = useAppStore();
+  const { activeFarmId, demoMode, notificationPrefs, setNotificationPrefs } = useAppStore();
   const { user: authUser } = useAuthStore();
   const [tab, setTab] = useState('general');
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingUser, setEditingUser] = useState<User | undefined>();
   const [importing, setImporting] = useState(false);
+  const [pushPermission, setPushPermission] = useState(getNotificationPermission());
+
+  const handleEnablePush = async () => {
+    const result = await requestNotificationPermission();
+    setPushPermission(result);
+    if (result === 'granted') {
+      setNotificationPrefs({ browserPush: true });
+      toast.success('Browser push notifications enabled');
+    } else if (result === 'denied') {
+      toast.error('Blocked — enable notifications for this site in your browser settings to turn this on');
+    }
+  };
 
   // ── Deep-link to a specific tab, e.g. the Header profile menu's
   // "My Profile" link going to /settings?tab=profile ─────────────────────────
@@ -552,22 +566,59 @@ export function SettingsPage() {
           {tab === 'alerts' && (
             <div className="card space-y-4">
               <h2 className="section-title">Notification Preferences</h2>
-              {[
-                { label: 'Task overdue alerts', desc: 'Get notified when tasks pass their due date' },
-                { label: 'Low stock alerts', desc: 'Alert when inventory drops below minimum level' },
-                { label: 'Equipment service due', desc: 'Reminder 2 weeks before scheduled service' },
-                { label: 'Significant rainfall events', desc: 'Alert on rainfall > 25mm in 24 hours' },
-                { label: 'Livestock health alerts', desc: 'Flag when animal status changes to sick/quarantine' },
-                { label: 'Financial budget overruns', desc: 'Notify when actual spend exceeds budget by 10%' },
-              ].map(n => (
-                <label key={n.label} className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="mt-0.5 w-4 h-4 accent-farm-700 rounded" />
+              <p className="text-xs text-gray-400 -mt-2">
+                Controls both the bell dropdown's live pop-up toasts and (if enabled below) browser push — not just a display setting.
+              </p>
+              {([
+                { key: 'taskOverdue',       label: 'Task overdue alerts',            desc: 'Get notified when tasks pass their due date' },
+                { key: 'lowStock',          label: 'Low stock alerts',               desc: 'Alert when inventory drops below minimum level' },
+                { key: 'equipmentService',  label: 'Equipment service due',          desc: 'Alert when a machine’s next service date is within a week' },
+                { key: 'rainfallEvents',    label: 'Significant rainfall events',    desc: 'Alert on rainfall > 25mm in 24 hours (coming soon — not yet wired to live weather data)' },
+                { key: 'livestockHealth',   label: 'Livestock health alerts',        desc: 'Flag when animal status changes to sick/quarantine (coming soon — not yet wired)' },
+                { key: 'budgetOverruns',    label: 'Financial budget overruns',      desc: 'Notify when actual spend exceeds budget by 10% (coming soon — not yet wired)' },
+              ] as { key: keyof typeof notificationPrefs; label: string; desc: string }[]).map(n => (
+                <label key={n.key} className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs[n.key]}
+                    onChange={(e) => setNotificationPrefs({ [n.key]: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 accent-farm-700 rounded"
+                  />
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{n.label}</p>
                     <p className="text-xs text-gray-400">{n.desc}</p>
                   </div>
                 </label>
               ))}
+
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                <div className="flex items-start gap-3">
+                  {notificationPrefs.browserPush && pushPermission === 'granted'
+                    ? <BellRing className="w-4 h-4 mt-0.5 text-farm-600 flex-shrink-0" />
+                    : <BellOff className="w-4 h-4 mt-0.5 text-gray-300 flex-shrink-0" />}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Browser push notifications</p>
+                    <p className="text-xs text-gray-400">
+                      {!isNotificationSupported() && "Not supported in this browser."}
+                      {isNotificationSupported() && pushPermission === 'denied' && 'Blocked — enable notifications for this site in your browser settings.'}
+                      {isNotificationSupported() && pushPermission === 'default' && "Get alerts even when this tab isn't focused (only while it's open — not when the app is fully closed)."}
+                      {isNotificationSupported() && pushPermission === 'granted' && (notificationPrefs.browserPush ? 'Enabled for this device.' : 'Permission granted — currently turned off below.')}
+                    </p>
+                  </div>
+                  {isNotificationSupported() && pushPermission === 'granted' && (
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.browserPush}
+                      onChange={(e) => setNotificationPrefs({ browserPush: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 accent-farm-700 rounded flex-shrink-0"
+                    />
+                  )}
+                  {isNotificationSupported() && pushPermission === 'default' && (
+                    <button className="btn-secondary text-xs flex-shrink-0" onClick={handleEnablePush}>Enable</button>
+                  )}
+                </div>
+              </div>
+
               <button className="btn-primary" onClick={() => toast.success('Notification preferences saved!')}>Save Preferences</button>
             </div>
           )}

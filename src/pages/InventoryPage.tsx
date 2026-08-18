@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -38,6 +39,19 @@ export function InventoryPage() {
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>();
   const { sort, onSort } = useTableSort('name', 'asc');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Deep-link from a notification, e.g. /inventory?q=Glyphosate+450 ──────
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearch(q);
+      setCategoryFilter('all');
+      setLowStockOnly(false);
+      setSearchParams((p) => { p.delete('q'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lowStock = inventory.filter(i => i.minStockLevel !== undefined && i.quantity <= i.minStockLevel);
   const totalValue = inventory.reduce((s, i) => s + (i.costPerUnit ?? 0) * i.quantity, 0);

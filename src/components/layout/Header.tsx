@@ -93,15 +93,21 @@ function NotificationDropdown({
             const PIcon = PRIORITY_ICON[a.priority];
             const TIcon = TYPE_ICON[a.type];
             return (
-              <li key={a.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <PIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PRIORITY_COLOR[a.priority]}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.message}</p>
-                  {a.detail && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.detail}</p>
-                  )}
-                </div>
-                <TIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-300 dark:text-gray-600" />
+              <li key={a.id}>
+                <Link
+                  to={a.to}
+                  onClick={onClose}
+                  className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                >
+                  <PIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PRIORITY_COLOR[a.priority]}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{a.message}</p>
+                    {a.detail && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.detail}</p>
+                    )}
+                  </div>
+                  <TIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-300 dark:text-gray-600" />
+                </Link>
               </li>
             );
           })}

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -25,6 +26,18 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'title' | 'status'>('priority');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Deep-link from a notification, e.g. /tasks?q=Service+header ──────────
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearch(q);
+      setStatusFilter('all');
+      setSearchParams((p) => { p.delete('q'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const todo = tasks.filter(t => t.status === 'todo').length;
   const inProgress = tasks.filter(t => t.status === 'in_progress').length;

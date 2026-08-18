@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -26,6 +27,19 @@ export function EquipmentPage() {
   const [editingEquipment, setEditingEquipment] = useState<Equipment | undefined>();
   const [servicingEquipment, setServicingEquipment] = useState<Equipment | undefined>();
   const { sort: fleetSort, onSort: onFleetSort } = useTableSort('name', 'asc');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Deep-link from a notification, e.g. /equipment?q=Bauer+Centre+Pivot ──
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearch(q);
+      setTab('fleet');
+      setStatusFilter('all');
+      setSearchParams((p) => { p.delete('q'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { sort: logSort, onSort: onLogSort } = useTableSort('date', 'desc');
 
   const operational = equipment.filter(e => e.status === 'operational').length;

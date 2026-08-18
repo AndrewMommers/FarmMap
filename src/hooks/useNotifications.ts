@@ -11,6 +11,8 @@ export interface FarmNotification {
   type: NotifType;
   message: string;
   detail?: string;
+  /** Where clicking this notification should take you — the relevant list page, pre-filtered to this item. */
+  to: string;
 }
 
 const PRIORITY_ORDER: Record<NotifPriority, number> = {
@@ -41,6 +43,7 @@ export function useNotifications() {
           type:     'task',
           message:  `Task overdue`,
           detail:   t.title,
+          to:       `/tasks?q=${encodeURIComponent(t.title)}`,
         });
       } else if (days <= 3) {
         alerts.push({
@@ -49,6 +52,7 @@ export function useNotifications() {
           type:     'task',
           message:  days === 0 ? 'Due today' : `Due in ${days} day${days > 1 ? 's' : ''}`,
           detail:   t.title,
+          to:       `/tasks?q=${encodeURIComponent(t.title)}`,
         });
       }
     }
@@ -63,6 +67,7 @@ export function useNotifications() {
           type:     'inventory',
           message:  i.quantity === 0 ? 'Out of stock' : 'Low stock',
           detail:   `${i.name} — ${i.quantity} ${i.unit} remaining`,
+          to:       `/inventory?q=${encodeURIComponent(i.name)}`,
         });
       }
     }
@@ -78,6 +83,7 @@ export function useNotifications() {
           type:     'equipment',
           message:  days < 0 ? 'Service overdue' : `Service in ${days} day${days !== 1 ? 's' : ''}`,
           detail:   e.name,
+          to:       `/equipment?q=${encodeURIComponent(e.name)}`,
         });
       }
     }

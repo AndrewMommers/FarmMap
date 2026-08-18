@@ -47,6 +47,24 @@ export default {
         'tractor': '320px',
         'xs': '480px',
       },
+      keyframes: {
+        'fade-up': {
+          '0%':   { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'drift': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '50%':      { transform: 'translateX(-16px)' },
+        },
+      },
+      animation: {
+        // Pure CSS, runs once on paint — never conditional on JS/scroll
+        // observers, so there's no risk of content staying invisible if a
+        // script is slow, blocked, or never fires.
+        'fade-up': 'fade-up 0.6s ease-out both',
+        // Ambient, decorative, continuous — never gates content visibility.
+        'drift': 'drift 22s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

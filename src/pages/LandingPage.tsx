@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useDataStore } from '../store/dataStore';
@@ -27,18 +27,24 @@ const INTEGRATIONS = [
 ];
 
 const FEATURES = [
-  { icon: Map, title: 'Paddock Mapping', desc: 'Draw paddock boundaries straight onto a live map. Track soil type, status and what’s growing where, at a glance.' },
-  { icon: Beef, title: 'Livestock Records', desc: 'NLIS tags, breeds, weights and health status for every animal and mob — searchable, sortable, exportable.' },
-  { icon: Sprout, title: 'Crops & Spray Records', desc: 'Plan plantings by season, track yield per hectare, and keep a compliant chemical register with withholding periods.' },
-  { icon: Wrench, title: 'Equipment & Maintenance', desc: 'Service schedules, maintenance logs and running costs for every tractor, harvester and pump on the property.' },
-  { icon: DollarSign, title: 'Finance & GST', desc: 'Income and expenses in AUD, categorised and GST-flagged, budgeted by financial year — ready for your accountant.' },
-  { icon: Package, title: 'Inventory', desc: 'Chemicals, fertiliser, feed and parts with low-stock alerts so you’re never caught short mid-season.' },
-  { icon: CloudRain, title: 'Weather & Rainfall', desc: 'Track rainfall against long-term averages and keep a weather history for every paddock.' },
-  { icon: CheckSquare, title: 'Tasks', desc: 'Assign jobs to the team, link them to a paddock or a machine, and never lose track of what’s overdue.' },
-  { icon: ShieldCheck, title: 'Compliance', desc: 'Chemical use register, MSDS sheets, PIC and biosecurity records, all in one auditable place.' },
-  { icon: FileBarChart, title: 'Reports & Export', desc: 'One-click PDF and CSV exports for the bank, the accountant, or the auditor.' },
-  { icon: Users, title: 'Team & Access', desc: 'Owners, managers, operators, agronomists and accountants each get their own role — with a shared contact directory reachable straight from Tractor Mode.' },
-];
+  { icon: Map, title: 'Paddock Mapping', tone: 'farm', desc: 'Draw paddock boundaries straight onto a live map. Track soil type, status and what’s growing where, at a glance.' },
+  { icon: Beef, title: 'Livestock Records', tone: 'farm', desc: 'NLIS tags, breeds, weights and health status for every animal and mob — searchable, sortable, exportable.' },
+  { icon: Sprout, title: 'Crops & Spray Records', tone: 'farm', desc: 'Plan plantings by season, track yield per hectare, and keep a compliant chemical register with withholding periods.' },
+  { icon: Wrench, title: 'Equipment & Maintenance', tone: 'farm', desc: 'Service schedules, maintenance logs and running costs for every tractor, harvester and pump on the property.' },
+  { icon: DollarSign, title: 'Finance & GST', tone: 'earth', desc: 'Income and expenses in AUD, categorised and GST-flagged, budgeted by financial year — ready for your accountant.' },
+  { icon: Package, title: 'Inventory', tone: 'earth', desc: 'Chemicals, fertiliser, feed and parts with low-stock alerts so you’re never caught short mid-season.' },
+  { icon: CloudRain, title: 'Weather & Rainfall', tone: 'sky', desc: 'Track rainfall against long-term averages and keep a weather history for every paddock.' },
+  { icon: CheckSquare, title: 'Tasks', tone: 'farm', desc: 'Assign jobs to the team, link them to a paddock or a machine, and never lose track of what’s overdue.' },
+  { icon: ShieldCheck, title: 'Compliance', tone: 'earth', desc: 'Chemical use register, MSDS sheets, PIC and biosecurity records, all in one auditable place.' },
+  { icon: FileBarChart, title: 'Reports & Export', tone: 'sky', desc: 'One-click PDF and CSV exports for the bank, the accountant, or the auditor.' },
+  { icon: Users, title: 'Team & Access', tone: 'sky', desc: 'Owners, managers, operators, agronomists and accountants each get their own role — with a shared contact directory reachable straight from Tractor Mode.' },
+] as const;
+
+const FEATURE_TONE = {
+  farm:  { tile: 'from-farm-100 to-farm-200 dark:from-farm-900/40 dark:to-farm-800/40', icon: 'text-farm-700 dark:text-farm-400' },
+  earth: { tile: 'from-earth-100 to-earth-200 dark:from-earth-900/40 dark:to-earth-800/40', icon: 'text-earth-700 dark:text-earth-400' },
+  sky:   { tile: 'from-sky-50 to-sky-100 dark:from-sky-900/30 dark:to-sky-800/30', icon: 'text-sky-700 dark:text-sky-400' },
+} as const;
 
 const FARM_TYPES = [
   'Cropping', 'Livestock', 'Dairy', 'Poultry', 'Horticulture',
@@ -119,8 +125,61 @@ function Eyebrow({ icon: Icon, children, tone = 'dark' }: { icon: typeof Wheat; 
   );
 }
 
+/**
+ * Scroll-triggered fade-up, built so a slow/blocked/erroring script degrades
+ * to "no animation" rather than "content never appears":
+ *
+ * - Renders fully visible by default (no opacity-0 baked into the initial
+ *   markup) — if this effect never runs at all, nothing is ever hidden.
+ * - Only switches to the hidden starting state once IntersectionObserver is
+ *   confirmed available and the effect has actually run.
+ * - Unobserves after the first reveal — this fires once, not on every scroll.
+ */
+function Reveal({ children, className = '', delayMs = 0 }: { children: React.ReactNode; className?: string; delayMs?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [phase, setPhase] = useState<'static' | 'hidden' | 'visible'>('static');
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !('IntersectionObserver' in window)) return;
+    setPhase('hidden');
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setPhase('visible');
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -8% 0px' },
+    );
+    observer.observe(el);
+    // Safety net: a large instant scroll jump (End key, scroll restoration,
+    // etc.) can carry an element straight from below the viewport to above
+    // it without ever rendering an intermediate frame, so the observer never
+    // sees it intersect. Force-reveal after a bounded wait so nothing stays
+    // invisible forever.
+    const fallback = window.setTimeout(() => setPhase('visible'), 1800);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(fallback);
+    };
+  }, []);
+
+  const motion = phase === 'hidden' ? 'opacity-0 translate-y-5' : 'opacity-100 translate-y-0';
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-700 ease-out ${motion} ${className}`}
+      style={delayMs ? { transitionDelay: `${delayMs}ms` } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const { setDemoMode } = useAppStore();
   const { loadDemoData } = useDataStore();
 
@@ -129,10 +188,21 @@ export function LandingPage() {
     setDemoMode(true);
   };
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-farm-100 dark:border-gray-800">
+      <header
+        className={`sticky top-0 z-40 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b transition-shadow duration-300 ${
+          scrolled ? 'border-farm-100 dark:border-gray-800 shadow-sm' : 'border-transparent'
+        }`}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <a href="#top" className="flex items-center gap-2.5 font-bold text-lg">
             <span className="w-8 h-8 rounded-lg bg-farm-600 flex items-center justify-center flex-shrink-0">
@@ -183,11 +253,11 @@ export function LandingPage() {
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section id="top" className="relative overflow-hidden bg-gradient-to-br from-farm-900 via-farm-800 to-earth-900">
-        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.15] pointer-events-none" color="#bbf7d0" />
+        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.15] pointer-events-none animate-drift" color="#bbf7d0" />
         <Compass className="absolute -right-6 top-8 w-40 h-40 text-farm-200/10 pointer-events-none hidden lg:block" strokeWidth={0.75} />
 
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-20 lg:py-28 grid lg:grid-cols-2 gap-12 items-center">
-          <div>
+          <div className="animate-fade-up">
             <Eyebrow icon={Compass} tone="dark">Built for Australian farms</Eyebrow>
             <h1 className="font-display text-5xl sm:text-6xl font-bold text-white leading-[1.02] tracking-tight text-balance">
               Run the whole farm from <em className="italic text-farm-300">one map.</em>
@@ -214,7 +284,7 @@ export function LandingPage() {
           </div>
 
           {/* Hero visual: stylised paddock map, framed like a real browser window */}
-          <div className="relative">
+          <div className="relative animate-fade-up [animation-delay:150ms]">
             <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-2xl shadow-black/40 overflow-hidden ring-1 ring-black/5">
               {/* Browser chrome */}
               <div className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
@@ -261,44 +331,49 @@ export function LandingPage() {
 
       {/* ── Farm types strip ───────────────────────────────────────────── */}
       <section className="border-b border-farm-100 dark:border-gray-800 bg-farm-50 dark:bg-gray-900/40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-          <span className="text-xs uppercase tracking-wide font-bold text-gray-400">Works for</span>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap items-center justify-center gap-2">
+          <span className="text-xs uppercase tracking-wide font-bold text-gray-400 mr-2">Works for</span>
           {FARM_TYPES.map((t) => (
-            <span key={t}>{t}</span>
+            <span
+              key={t}
+              className="text-xs font-semibold text-farm-700 dark:text-farm-300 bg-white dark:bg-gray-900 border border-farm-200 dark:border-farm-800 rounded-full px-3 py-1"
+            >
+              {t}
+            </span>
           ))}
         </div>
       </section>
 
       {/* ── Features ────────────────────────────────────────────────────── */}
       <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
-        <div className="text-center max-w-2xl mx-auto mb-14">
+        <Reveal className="text-center max-w-2xl mx-auto mb-14">
           <Eyebrow icon={Map} tone="light">The platform</Eyebrow>
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Every part of the farm, one system</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             Replace the paper diary, the spray logbook and the shed full of folders with records
             that live on the map where the work actually happens.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURES.map(({ icon: Icon, title, desc }) => (
+        </Reveal>
+        <Reveal className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" delayMs={100}>
+          {FEATURES.map(({ icon: Icon, title, desc, tone }) => (
             <div
               key={title}
               className="card group hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-100 to-farm-200 dark:from-farm-900/40 dark:to-farm-800/40 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                <Icon className="w-5 h-5 text-farm-700 dark:text-farm-400" />
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${FEATURE_TONE[tone].tile} flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
+                <Icon className={`w-5 h-5 ${FEATURE_TONE[tone].icon}`} />
               </div>
               <h3 className="font-bold text-gray-900 dark:text-gray-100">{title}</h3>
               <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{desc}</p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Tractor Mode ────────────────────────────────────────────────── */}
       <section id="tractor-mode" className="bg-farm-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
-          <div className="order-2 lg:order-1">
+          <Reveal className="order-2 lg:order-1">
             <div className="rounded-2xl bg-farm-950 border border-farm-700/50 p-4 shadow-2xl">
               {/* Mini tab bar */}
               <div className="flex items-center gap-1 bg-farm-900 rounded-xl p-1 mb-3">
@@ -334,8 +409,8 @@ export function LandingPage() {
                 <span className="ml-auto text-farm-400 font-normal">just now</span>
               </div>
             </div>
-          </div>
-          <div className="order-1 lg:order-2">
+          </Reveal>
+          <Reveal className="order-1 lg:order-2" delayMs={100}>
             <Eyebrow icon={Tractor} tone="dark">In the cab</Eyebrow>
             <h2 className="font-display text-4xl font-bold text-white tracking-tight text-balance">Built to be used from the cab, not just the office</h2>
             <p className="mt-4 text-farm-200/90">
@@ -355,21 +430,43 @@ export function LandingPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── Integrations ────────────────────────────────────────────────── */}
       <section id="integrations" className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
-        <div className="text-center max-w-2xl mx-auto mb-14">
+        <Reveal className="text-center max-w-2xl mx-auto mb-14">
           <Eyebrow icon={RefreshCw} tone="light">Connected</Eyebrow>
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Plugs into the tools you already run</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             FarmMap doesn't ask you to abandon your equipment telematics or your accounting software —
             it syncs with them, so the numbers in your reports match what's actually happening on the ground.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-5">
+        </Reveal>
+
+        {/* Hub-and-spoke: FarmMap in the middle, everything else plugs in */}
+        <Reveal className="flex items-center justify-center gap-3 sm:gap-4 max-w-lg mx-auto mb-14">
+          <div className="w-12 h-12 rounded-2xl bg-farm-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-farm-700/20">
+            <Wheat className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 relative border-t-2 border-dashed border-farm-200 dark:border-farm-800">
+            <RefreshCw className="w-3.5 h-3.5 text-farm-400 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-950 rounded-full" />
+          </div>
+          <div className="flex gap-2 sm:gap-3 flex-shrink-0">
+            {INTEGRATIONS.map(({ icon: Icon, name }) => (
+              <div
+                key={name}
+                title={name}
+                className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-900 border-2 border-farm-200 dark:border-farm-800 flex items-center justify-center shadow-sm"
+              >
+                <Icon className="w-5 h-5 text-farm-700 dark:text-farm-400" />
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal className="grid sm:grid-cols-3 gap-5" delayMs={100}>
           {INTEGRATIONS.map(({ icon: Icon, name, desc }) => (
             <div key={name} className="card hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-600 to-farm-800 flex items-center justify-center mb-3">
@@ -379,7 +476,7 @@ export function LandingPage() {
               <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{desc}</p>
             </div>
           ))}
-        </div>
+        </Reveal>
         <p className="mt-6 text-center text-xs text-gray-400">
           Each connection is a one-time setup by the farm owner from Settings — your credentials are
           never stored in the browser.
@@ -388,7 +485,7 @@ export function LandingPage() {
 
       {/* ── Compliance ──────────────────────────────────────────────────── */}
       <section id="compliance" className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
-        <div>
+        <Reveal>
           <Eyebrow icon={ShieldCheck} tone="earth">Audit-ready</Eyebrow>
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Compliance paperwork, sorted automatically</h2>
           <p className="mt-4 text-gray-500 dark:text-gray-400">
@@ -408,8 +505,8 @@ export function LandingPage() {
               </li>
             ))}
           </ul>
-        </div>
-        <div className="card">
+        </Reveal>
+        <Reveal className="card" delayMs={100}>
           <div className="flex items-center justify-between mb-4">
             <span className="font-bold text-sm">Chemical Use Register</span>
             <span className="badge bg-farm-100 text-farm-700">Current</span>
@@ -431,16 +528,16 @@ export function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Australian Owned ────────────────────────────────────────────── */}
       <section id="australian-owned" className="border-t border-farm-100 dark:border-gray-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
-          <div className="order-2 lg:order-1 flex justify-center">
+          <Reveal className="order-2 lg:order-1 flex justify-center">
             <SovereignSeal className="w-56 h-56 sm:w-64 sm:h-64 text-farm-700 dark:text-farm-400" />
-          </div>
-          <div className="order-1 lg:order-2">
+          </Reveal>
+          <Reveal className="order-1 lg:order-2" delayMs={100}>
             <Eyebrow icon={BadgeCheck} tone="light">Australian Owned &amp; Operated</Eyebrow>
             <h2 className="font-display text-4xl font-bold tracking-tight text-balance">
               Aussie owned. Aussie built. Aussie run.
@@ -462,14 +559,14 @@ export function LandingPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── CTA ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-farm-50 dark:bg-gray-900/40 border-t border-farm-100 dark:border-gray-800">
-        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.35] dark:opacity-[0.08] pointer-events-none" color="#86efac" />
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.35] dark:opacity-[0.08] pointer-events-none animate-drift" color="#86efac" />
+        <Reveal className="relative max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Ready to get off the spreadsheets?</h2>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             Create a free account and set up your farm in a couple of minutes, or explore FarmMap
@@ -488,7 +585,7 @@ export function LandingPage() {
               Try the Demo
             </button>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}

@@ -26,9 +26,19 @@ import { Wheat, Loader2 } from 'lucide-react';
 
 export default function App() {
   const { session, authLoading, setSession } = useAuthStore();
-  const { dataLoading, farms, loadFromSupabase, clearData, subscribeToRealtime } = useDataStore();
+  const { dataLoading, farms, loadFromSupabase, loadDemoData, clearData, subscribeToRealtime } = useDataStore();
   const { demoMode } = useAppStore();
   const unsubRef = useRef<(() => void) | null>(null);
+
+  // ── Restore demo data after a hard refresh ────────────────────────────────
+  // `demoMode` is persisted (Zustand persist), but the actual mock records in
+  // dataStore deliberately aren't — a refresh while in demo mode would
+  // otherwise leave demoMode true but farms empty, which the routing below
+  // reads as "signed in with zero farms" and incorrectly sends to onboarding.
+  useEffect(() => {
+    if (demoMode && farms.length === 0) loadDemoData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode]);
 
   // ── Bootstrap auth (skipped in demo mode) ─────────────────────────────────
   useEffect(() => {

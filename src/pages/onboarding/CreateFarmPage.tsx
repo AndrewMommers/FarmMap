@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useDataStore } from '../../store/dataStore';
+import { useAppStore } from '../../store/appStore';
 import type { FarmType, State } from '../../types';
 import { Wheat, MapPin, Loader2, ArrowLeft, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -23,12 +24,21 @@ const STATES: State[] = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 
 export function CreateFarmPage() {
   const { user, signOut } = useAuthStore();
-  const { addFarm, loadFromSupabase, farms } = useDataStore();
+  const { addFarm, loadFromSupabase, clearData, farms } = useDataStore();
+  const { demoMode, setDemoMode } = useAppStore();
   const navigate = useNavigate();
   const isAddingExtra = farms.length > 0;
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
+    // In demo mode there's no real Supabase session to sign out of — the fix
+    // is exiting demo mode itself, otherwise demoMode stays true, farms stays
+    // empty, and the app just lands right back on this same screen.
+    if (demoMode) {
+      setDemoMode(false);
+      clearData();
+      return;
+    }
     setSigningOut(true);
     try {
       await signOut();
@@ -97,7 +107,7 @@ export function CreateFarmPage() {
             className="inline-flex items-center gap-1.5 text-sm font-medium text-farm-300 hover:text-farm-100 mb-6 disabled:opacity-50"
           >
             {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-            {signingOut ? 'Signing out…' : `Not ${user?.email ?? 'you'}? Sign out`}
+            {signingOut ? 'Signing out…' : demoMode ? 'Exit Demo' : `Not ${user?.email ?? 'you'}? Sign out`}
           </button>
         )}
         <div className="text-center mb-8">

@@ -93,7 +93,8 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 | Live toast pop-ups for newly-appearing alerts | ✅ | Fires when an edit pushes a record into alert territory while the user is already in the app — not just sitting silently until the bell is checked |
 | Browser/OS push notifications | ✅ | Via the Web Notifications API through the PWA service worker; gated behind a real, persisted per-category preference. Only works while the tab is open (even unfocused) — true background push (app fully closed) needs server-side push infrastructure (VAPID keys + a sending Edge Function), not built |
 | Per-category notification preferences | ✅ | Task overdue / low stock / equipment service are real and enforced; rainfall events, livestock health, and budget overruns are honestly labelled "coming soon" — the toggles exist but nothing generates those alert types yet |
-| Farm-wide announcements (team broadcast) | ✅ | Simple shared feed in the bell dropdown's second tab — anyone posts, everyone on the farm sees it, realtime via Supabase. No DMs, no threading (deliberately out of scope) |
+| Farm-wide announcements (team broadcast) | ✅ | Simple shared feed — anyone posts, everyone on the farm sees it, realtime via Supabase. No DMs, no threading (deliberately out of scope) |
+| Farm Chat page | ✅ | A dedicated, roomier chat UI (message bubbles, own/others alignment, day dividers, auto-scroll) for the exact same announcements feed/backend — the bell dropdown's Announcements tab is the quick-glance version of the same data |
 | Direct messages / threaded team chat | ❌ | Not started — explicitly deferred as a separate, bigger feature needing its own product decisions |
 
 ## Data management

@@ -4,6 +4,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { formatDate } from '../lib/utils';
 import { useFarmData } from '../hooks/useFarmData';
+import { downloadPDF } from '../lib/export';
 import toast from 'react-hot-toast';
 import { Plus, ShieldCheck, AlertTriangle, FileText, FlaskConical } from 'lucide-react';
 
@@ -74,6 +75,18 @@ export function CompliancePage() {
     expired:    'bg-red-100 text-red-800',
   };
 
+  const exportRegister = () => {
+    if (chemicalRegister.length === 0) { toast.error('No chemical register entries to export yet'); return; }
+    downloadPDF(
+      'farmmap-chemical-use-register',
+      'Chemical Use Register',
+      ['Date', 'Product', 'Purpose', 'Paddock', 'Rate/ha', 'Total Used', 'Operator', 'WHP (days)'],
+      chemicalRegister.map((e) => [formatDate(e.date), e.product, e.purpose, e.paddock, `${e.ratePerHa} ${e.unit}`, e.totalUsed, e.operator, e.withholdingDays || '—']),
+      'All spray records retained for a minimum of 3 years as required by state agricultural chemical regulations.',
+    );
+    toast.success('Chemical use register exported');
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -81,7 +94,7 @@ export function CompliancePage() {
         subtitle="Spray records, withholding periods, and regulatory documents"
         actions={
           <div className="flex gap-2">
-            <button className="btn-secondary" onClick={() => toast('Export register – coming soon')}>
+            <button className="btn-secondary" onClick={exportRegister}>
               <FileText className="w-4 h-4" /> Export PDF
             </button>
             <button className="btn-primary" onClick={() => toast.success('Add spray record via the Crops or Paddocks pages')}>

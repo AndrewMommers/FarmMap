@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -11,13 +11,15 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { formatDate, getInitials, timeAgo } from '../lib/utils';
 import { findContainingPaddock, formatCoords } from '../lib/geo';
+import { downloadJSON, parseCSV } from '../lib/export';
 import toast from 'react-hot-toast';
 import {
   Plus, Settings, Users, Bell, Globe, Database, Shield, Tractor, RefreshCw, Unplug,
   Landmark, Zap, CircleUser, Smartphone, RotateCcw, Trash2, MapPin, LogIn, LogOut as LogOutIcon,
 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
-import type { FarmType, State } from '../types';
+import { EditUserModal } from '../components/modals/EditUserModal';
+import type { FarmType, State, User, TransactionCategory, TransactionType } from '../types';
 
 const TABS = [
   { id: 'general',      label: 'General',        icon: <Settings className="w-4 h-4" /> },
@@ -35,13 +37,17 @@ const STATES: State[] = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 const AVATAR_EMOJIS = ['🧑‍🌾', '👩‍🌾', '🧑‍💼', '👨‍🔧', '👩‍🔧', '🚜', '🐑', '🐄', '🌾', '😀', '😎', '🤠'];
 
 export function SettingsPage() {
-  const { users, farm, paddocks, geofenceEvents } = useFarmData();
+  const farmData = useFarmData();
+  const { users, farm, paddocks, geofenceEvents } = farmData;
   const updateFarm = useDataStore((s) => s.updateFarm);
   const updateUser = useDataStore((s) => s.updateUser);
+  const addTransaction = useDataStore((s) => s.addTransaction);
   const { activeFarmId, demoMode } = useAppStore();
   const { user: authUser } = useAuthStore();
   const [tab, setTab] = useState('general');
   const [searchParams, setSearchParams] = useSearchParams();
+  const [editingUser, setEditingUser] = useState<User | undefined>();
+  const [importing, setImporting] = useState(false);
 
   // ── Deep-link to a specific tab, e.g. the Header profile menu's
   // "My Profile" link going to /settings?tab=profile ─────────────────────────
@@ -280,8 +286,97 @@ export function SettingsPage() {
     setPwForm({ newPw: '', confirmPw: '' });
   };
 
+  // ── Data export / import ──────────────────────────────────────────────────
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const VALID_CATEGORIES = new Set<TransactionCategory>([
+    'livestock_sale', 'crop_sale', 'produce_sale', 'agistment', 'government_payment',
+    'fuel', 'fertiliser', 'chemical', 'seed', 'feed', 'veterinary',
+    'labour', 'machinery', 'repairs', 'insurance', 'rates', 'utilities',
+    'freight', 'professional_fees', 'other_income', 'other_expense',
+  ]);
+
+  const exportAllData = () => {
+    downloadJSON(`farmmap-export-${farm?.name ?? 'farm'}-${new Date().toISOString().slice(0, 10)}`, {
+      exportedAt: new Date().toISOString(),
+      farm,
+      paddocks: farmData.paddocks,
+      livestockMobs: farmData.livestockMobs,
+      livestock: farmData.livestock,
+      crops: farmData.crops,
+      sprayRecords: farmData.sprayRecords,
+      equipment: farmData.equipment,
+      maintenanceLogs: farmData.maintenanceLogs,
+      transactions: farmData.transactions,
+      budgets: farmData.budgets,
+      inventory: farmData.inventory,
+      tasks: farmData.tasks,
+      users: farmData.users,
+    });
+    toast.success('Farm data exported as JSON');
+  };
+
+  // Imports transactions from a CSV matching the Reports page's own export
+  // shape (Date, Description, Category, Type, Amount) — the two are
+  // deliberately symmetric so a prior export can be re-imported.
+  const handleImportCSV = async (file: File) => {
+    if (demoMode) { toast.error("Data import isn't available in demo mode"); return; }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length < 2) { toast.error('CSV has no data rows'); return; }
+
+      const header = rows[0].map((h) => h.trim().toLowerCase());
+      const idx = {
+        date: header.indexOf('date'),
+        description: header.indexOf('description'),
+        category: header.indexOf('category'),
+        type: header.indexOf('type'),
+        amount: header.indexOf('amount'),
+      };
+      if (idx.date < 0 || idx.description < 0 || idx.type < 0 || idx.amount < 0) {
+        toast.error('CSV must have Date, Description, Type and Amount columns');
+        return;
+      }
+
+      let imported = 0;
+      let skipped = 0;
+      for (const row of rows.slice(1)) {
+        const dateStr = row[idx.date]?.trim();
+        const amountStr = row[idx.amount]?.trim();
+        const typeStr = row[idx.type]?.trim().toLowerCase();
+        const amount = Number(amountStr);
+        if (!dateStr || Number.isNaN(Date.parse(dateStr)) || Number.isNaN(amount) || (typeStr !== 'income' && typeStr !== 'expense')) {
+          skipped++;
+          continue;
+        }
+        const type = typeStr as TransactionType;
+        const rawCategory = (row[idx.category]?.trim().toLowerCase().replace(/\s+/g, '_') ?? '') as TransactionCategory;
+        const category = VALID_CATEGORIES.has(rawCategory) ? rawCategory : (type === 'income' ? 'other_income' : 'other_expense');
+
+        addTransaction(activeFarmId, {
+          date: new Date(dateStr).toISOString().slice(0, 10),
+          description: row[idx.description]?.trim() || 'Imported transaction',
+          category,
+          type,
+          amountAUD: Math.abs(amount),
+          gstIncluded: false,
+        });
+        imported++;
+      }
+
+      if (imported === 0) toast.error('No valid rows found to import');
+      else toast.success(`Imported ${imported} transaction${imported === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped)` : ''}`);
+    } catch {
+      toast.error('Could not read that file — make sure it\'s a CSV export from FarmMap');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <EditUserModal open={!!editingUser} onClose={() => setEditingUser(undefined)} user={editingUser} />
       <PageHeader title="Settings" subtitle="Farm configuration, users, integrations, and data management" />
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -443,7 +538,7 @@ export function SettingsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <StatusBadge status={u.role} label={u.role} />
                       <StatusBadge status={u.active ? 'active' : 'locked'} label={u.active ? 'Active' : 'Inactive'} />
-                      <button className="btn-secondary text-xs py-1 px-2" onClick={() => toast('Edit user – coming soon')}>Edit</button>
+                      <button className="btn-secondary text-xs py-1 px-2" onClick={() => setEditingUser(u)}>Edit</button>
                     </div>
                   </div>
                 ))}
@@ -780,13 +875,22 @@ export function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="border border-gray-100 rounded-xl p-4">
                   <p className="font-semibold text-sm mb-1">Export All Data</p>
-                  <p className="text-xs text-gray-400 mb-3">Download complete farm data as JSON or CSV</p>
-                  <button className="btn-secondary text-xs" onClick={() => toast('Export data – coming soon')}>Export JSON</button>
+                  <p className="text-xs text-gray-400 mb-3">Download complete farm data as JSON</p>
+                  <button className="btn-secondary text-xs" onClick={exportAllData}>Export JSON</button>
                 </div>
                 <div className="border border-gray-100 rounded-xl p-4">
-                  <p className="font-semibold text-sm mb-1">Import Data</p>
-                  <p className="text-xs text-gray-400 mb-3">Import from AgData, FarmLink, or CSV</p>
-                  <button className="btn-secondary text-xs" onClick={() => toast('Import data – coming soon')}>Import CSV</button>
+                  <p className="font-semibold text-sm mb-1">Import Transactions</p>
+                  <p className="text-xs text-gray-400 mb-3">Import a CSV of transactions (Date, Description, Category, Type, Amount)</p>
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }}
+                  />
+                  <button className="btn-secondary text-xs" disabled={importing} onClick={() => importFileRef.current?.click()}>
+                    {importing ? 'Importing…' : 'Import CSV'}
+                  </button>
                 </div>
                 <div className="border border-gray-100 rounded-xl p-4">
                   <p className="font-semibold text-sm mb-1">Automatic Backups</p>

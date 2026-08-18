@@ -13,6 +13,7 @@ export function AuthPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [emailExists, setEmailExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, requestPasswordReset } = useAuthStore();
   const { setDemoMode } = useAppStore();
@@ -22,6 +23,7 @@ export function AuthPage() {
     e.preventDefault();
     setError('');
     setInfo('');
+    setEmailExists(false);
     setLoading(true);
 
     if (mode === 'forgot') {
@@ -35,10 +37,26 @@ export function AuthPage() {
       if (!name.trim()) { setError('Please enter your name'); setLoading(false); return; }
       if (password.length < 6) { setError('Password must be at least 6 characters'); setLoading(false); return; }
       const err = await signUp(email, password, name);
-      if (err) setError(err);
-      else setInfo('Check your email to confirm your account, then sign in.');
+      if (err) {
+        // Supabase's exact message for this case is "User already registered" —
+        // give a real next step instead of just showing the raw error.
+        if (err.toLowerCase().includes('already registered') || err.toLowerCase().includes('already exists')) {
+          setEmailExists(true);
+        } else {
+          setError(err);
+        }
+      } else {
+        setInfo('Check your email to confirm your account, then sign in.');
+      }
     }
     setLoading(false);
+  };
+
+  const goToMode = (m: 'login' | 'register' | 'forgot') => {
+    setMode(m);
+    setError('');
+    setInfo('');
+    setEmailExists(false);
   };
 
   return (
@@ -65,7 +83,7 @@ export function AuthPage() {
               {(['login', 'register'] as const).map((m) => (
                 <button
                   key={m}
-                  onClick={() => { setMode(m); setError(''); setInfo(''); }}
+                  onClick={() => goToMode(m)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
                     mode === m
                       ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
@@ -82,7 +100,7 @@ export function AuthPage() {
             <div className="mb-6">
               <button
                 type="button"
-                onClick={() => { setMode('login'); setError(''); setInfo(''); }}
+                onClick={() => goToMode('login')}
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -128,7 +146,7 @@ export function AuthPage() {
                   {mode === 'login' && (
                     <button
                       type="button"
-                      onClick={() => { setMode('forgot'); setError(''); setInfo(''); }}
+                      onClick={() => goToMode('forgot')}
                       className="text-xs font-medium text-farm-600 dark:text-farm-400 hover:underline mb-1"
                     >
                       Forgot password?
@@ -157,6 +175,16 @@ export function AuthPage() {
               </div>
             )}
 
+            {emailExists && (
+              <div className="text-sm bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-lg px-3 py-2.5 space-y-1.5">
+                <p>An account already exists for {email || 'that email'}.</p>
+                <p className="flex items-center gap-2 font-semibold">
+                  <button type="button" onClick={() => goToMode('login')} className="hover:underline">Sign in instead</button>
+                  <span aria-hidden="true" className="font-normal opacity-50">·</span>
+                  <button type="button" onClick={() => goToMode('forgot')} className="hover:underline">Forgot password?</button>
+                </p>
+              </div>
+            )}
             {error && (
               <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">
                 {error}
@@ -184,7 +212,7 @@ export function AuthPage() {
             <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
               Don&apos;t have an account?{' '}
               <button
-                onClick={() => { setMode('register'); setError(''); }}
+                onClick={() => goToMode('register')}
                 className="text-farm-600 dark:text-farm-400 hover:underline font-medium"
               >
                 Sign up free

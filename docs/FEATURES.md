@@ -84,13 +84,25 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 | Zepto — API-key connect/disconnect/sync | ⚠️ | Wired but unverified; payment amount units and GST treatment unconfirmed ([#14](https://github.com/AndrewMommers/FarmMap/issues/14)) |
 | BOM Weather API, NLIS, MYOB, AgriWebb, GrainCorp | ❌ | Roadmap placeholders in Settings → Integrations only ("Connect" buttons are stubs) — not started |
 
+## Notifications & messaging
+
+| Feature | Status | Notes |
+|---|---|---|
+| Bell dropdown — live derived alerts (task overdue, low stock, equipment service) | ✅ | |
+| Notification click-through | ✅ | Opens a quick-glance detail modal (full record + priority/status badges + quick actions like Mark Done) with a "View in Tasks/Inventory/Equipment" link that lands on that page pre-filtered |
+| Live toast pop-ups for newly-appearing alerts | ✅ | Fires when an edit pushes a record into alert territory while the user is already in the app — not just sitting silently until the bell is checked |
+| Browser/OS push notifications | ✅ | Via the Web Notifications API through the PWA service worker; gated behind a real, persisted per-category preference. Only works while the tab is open (even unfocused) — true background push (app fully closed) needs server-side push infrastructure (VAPID keys + a sending Edge Function), not built |
+| Per-category notification preferences | ✅ | Task overdue / low stock / equipment service are real and enforced; rainfall events, livestock health, and budget overruns are honestly labelled "coming soon" — the toggles exist but nothing generates those alert types yet |
+| Farm-wide announcements (team broadcast) | ✅ | Simple shared feed in the bell dropdown's second tab — anyone posts, everyone on the farm sees it, realtime via Supabase. No DMs, no threading (deliberately out of scope) |
+| Direct messages / threaded team chat | ❌ | Not started — explicitly deferred as a separate, bigger feature needing its own product decisions |
+
 ## Data management
 
-| Feature | Status |
-|---|---|
-| Export all farm data as JSON | ✅ |
-| Import transactions from CSV | ✅ |
-| PWA / offline app shell | ✅ (configured via `vite-plugin-pwa`) |
+| Feature | Status | Notes |
+|---|---|---|
+| Export all farm data as JSON | ✅ | |
+| Import transactions from CSV | ✅ | |
+| PWA / offline app shell | 🚧 | Configured via `vite-plugin-pwa`, but the manifest references icon files (`pwa-192x192.png`, `pwa-512x512.png`) that don't exist in `public/` — "Add to Home Screen" likely gets a broken/fallback icon ([#22](https://github.com/AndrewMommers/FarmMap/issues/22)) |
 
 ## Reliability & production readiness
 

@@ -13,6 +13,7 @@ import { TasksPage } from './pages/TasksPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CompliancePage } from './pages/CompliancePage';
+import { ChatPage } from './pages/ChatPage';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="/tasks"       element={<TasksPage />} />
             <Route path="/reports"     element={<ReportsPage />} />
             <Route path="/compliance"  element={<CompliancePage />} />
+            <Route path="/chat"        element={<ChatPage />} />
             <Route path="/settings"    element={<SettingsPage />} />
             <Route path="*"            element={<Navigate to="/" replace />} />
           </Route>
@@ -166,6 +168,7 @@ export default function App() {
           <Route path="/tasks"       element={<TasksPage />} />
           <Route path="/reports"     element={<ReportsPage />} />
           <Route path="/compliance"  element={<CompliancePage />} />
+          <Route path="/chat"        element={<ChatPage />} />
           <Route path="/settings"    element={<SettingsPage />} />
           <Route path="/new-farm"    element={<CreateFarmPage />} />
           <Route path="*"            element={<Navigate to="/" replace />} />

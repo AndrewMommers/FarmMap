@@ -3,15 +3,18 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
+import { RecordYieldModal } from '../components/modals/RecordYieldModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { formatDate } from '../lib/utils';
 import toast from 'react-hot-toast';
 import { Plus, Sprout, Droplets } from 'lucide-react';
+import type { CropRecord } from '../types';
 
 export function CropsPage() {
   const { crops, sprayRecords, paddocks } = useFarmData();
   const [tab, setTab] = useState<'crops' | 'spray'>('crops');
   const [search, setSearch] = useState('');
+  const [yieldCrop, setYieldCrop] = useState<CropRecord | undefined>();
 
   const activeCrops = crops.filter(c => c.status === 'growing' || c.status === 'planted');
   const harvestedCrops = crops.filter(c => c.status === 'harvested');
@@ -30,6 +33,7 @@ export function CropsPage() {
 
   return (
     <div className="space-y-6">
+      <RecordYieldModal open={!!yieldCrop} onClose={() => setYieldCrop(undefined)} crop={yieldCrop} />
       <PageHeader
         title="Crops & Agronomy"
         subtitle="Crop records, spray logs & paddock history"
@@ -83,8 +87,8 @@ export function CropsPage() {
                   <div className="flex justify-between"><span className="text-gray-500">Irrigated</span><span>{c.irrigated ? '✓ Yes' : 'Dryland'}</span></div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Spray log – see spray tab')}>Spray Log</button>
-                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Yield entry – coming soon')}>Record Yield</button>
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => { setTab('spray'); setSearch(c.cropName); }}>Spray Log</button>
+                  <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setYieldCrop(c)}>Record Yield</button>
                 </div>
               </div>
             );

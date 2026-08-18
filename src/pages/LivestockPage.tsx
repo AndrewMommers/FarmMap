@@ -4,6 +4,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { AddLivestockModal } from '../components/modals/AddLivestockModal';
+import { RecordMobMovementModal } from '../components/modals/RecordMobMovementModal';
+import { AddMobTreatmentModal } from '../components/modals/AddMobTreatmentModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate } from '../lib/utils';
@@ -21,6 +23,8 @@ export function LivestockPage() {
   const [showAddLivestock, setShowAddLivestock] = useState(false);
   const [editingMob, setEditingMob] = useState<LivestockMobGroup | undefined>();
   const [editingAnimal, setEditingAnimal] = useState<LivestockAnimal | undefined>();
+  const [movementMob, setMovementMob] = useState<LivestockMobGroup | undefined>();
+  const [treatmentMob, setTreatmentMob] = useState<LivestockMobGroup | undefined>();
 
   const totalCount = livestockMobs.reduce((s, m) => s + m.count, 0);
   const sickCount = livestock.filter((l) => l.status === 'sick' || l.status === 'quarantine').length;
@@ -60,6 +64,8 @@ export function LivestockPage() {
         initialMob={editingMob}
         initialAnimal={editingAnimal}
       />
+      <RecordMobMovementModal open={!!movementMob} onClose={() => setMovementMob(undefined)} mob={movementMob} />
+      <AddMobTreatmentModal open={!!treatmentMob} onClose={() => setTreatmentMob(undefined)} mob={treatmentMob} />
       <PageHeader
         title="Livestock"
         subtitle="NLIS-compliant herd & mob management"
@@ -121,8 +127,8 @@ export function LivestockPage() {
               </div>
               {mob.notes && <p className="mt-2 text-xs text-gray-500">{mob.notes}</p>}
               <div className="mt-4 flex gap-2">
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Movement record – coming soon')}>Record Movement</button>
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Treatment record – coming soon')}>Add Treatment</button>
+                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setMovementMob(mob)}>Record Movement</button>
+                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setTreatmentMob(mob)}>Add Treatment</button>
                 <button className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0" title="Edit mob" onClick={() => setEditingMob(mob)}><Pencil className="w-4 h-4" /></button>
                 <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete mob" onClick={() => handleDeleteMob(mob.id, mob.name)}><Trash2 className="w-4 h-4" /></button>
               </div>

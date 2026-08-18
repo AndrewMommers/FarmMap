@@ -260,7 +260,7 @@ export function LandingPage() {
           <div className="animate-fade-up">
             <Eyebrow icon={Compass} tone="dark">Built for Australian farms</Eyebrow>
             <h1 className="font-display text-5xl sm:text-6xl font-bold text-white leading-[1.02] tracking-tight text-balance">
-              Run the whole farm from <em className="italic text-farm-300">one map.</em>
+              Run the whole farm from <em className="italic bg-gradient-to-r from-farm-300 via-emerald-200 to-earth-200 bg-clip-text text-transparent">one map.</em>
             </h1>
             <p className="mt-6 text-lg text-farm-100/90 max-w-xl">
               FarmMap brings paddocks, livestock, crops, equipment, finances and compliance
@@ -268,7 +268,7 @@ export function LandingPage() {
               and start seeing your property the way you actually work it.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/login" className="inline-flex items-center gap-2 bg-farm-500 hover:bg-farm-400 text-farm-950 font-bold px-5 py-3 rounded-xl transition-colors text-sm shadow-lg shadow-farm-900/30">
+              <Link to="/login" className="inline-flex items-center gap-2 bg-farm-500 hover:bg-farm-400 text-farm-950 font-bold px-5 py-3 rounded-xl transition-all text-sm shadow-lg shadow-farm-400/20 hover:shadow-farm-400/40 hover:-translate-y-0.5">
                 Start Free
                 <ArrowRight className="w-4 h-4" />
               </Link>
@@ -285,6 +285,7 @@ export function LandingPage() {
 
           {/* Hero visual: stylised paddock map, framed like a real browser window */}
           <div className="relative animate-fade-up [animation-delay:150ms]">
+            <div className="absolute -inset-10 bg-farm-400/20 blur-3xl rounded-full -z-10" aria-hidden="true" />
             <div className="rounded-2xl bg-white dark:bg-gray-900 shadow-2xl shadow-black/40 overflow-hidden ring-1 ring-black/5">
               {/* Browser chrome */}
               <div className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
@@ -345,7 +346,9 @@ export function LandingPage() {
       </section>
 
       {/* ── Features ────────────────────────────────────────────────────── */}
-      <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
+      <section id="features" className="relative overflow-hidden max-w-6xl mx-auto px-4 sm:px-6 py-20">
+        <div className="absolute -top-16 -right-24 w-72 h-72 rounded-full bg-farm-200/40 dark:bg-farm-800/10 blur-3xl -z-10" aria-hidden="true" />
+        <div className="absolute bottom-0 -left-24 w-72 h-72 rounded-full bg-sky-100/50 dark:bg-sky-900/10 blur-3xl -z-10" aria-hidden="true" />
         <Reveal className="text-center max-w-2xl mx-auto mb-14">
           <Eyebrow icon={Map} tone="light">The platform</Eyebrow>
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Every part of the farm, one system</h2>
@@ -360,7 +363,7 @@ export function LandingPage() {
               key={title}
               className="card group hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200"
             >
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${FEATURE_TONE[tone].tile} flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${FEATURE_TONE[tone].tile} ring-1 ring-black/5 dark:ring-white/5 shadow-sm flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
                 <Icon className={`w-5 h-5 ${FEATURE_TONE[tone].icon}`} />
               </div>
               <h3 className="font-bold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -371,8 +374,9 @@ export function LandingPage() {
       </section>
 
       {/* ── Tractor Mode ────────────────────────────────────────────────── */}
-      <section id="tractor-mode" className="bg-farm-900">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+      <section id="tractor-mode" className="relative overflow-hidden bg-farm-900">
+        <ContourLines className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none animate-drift" color="#4ade80" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
           <Reveal className="order-2 lg:order-1">
             <div className="rounded-2xl bg-farm-950 border border-farm-700/50 p-4 shadow-2xl">
               {/* Mini tab bar */}
@@ -447,8 +451,11 @@ export function LandingPage() {
 
         {/* Hub-and-spoke: FarmMap in the middle, everything else plugs in */}
         <Reveal className="flex items-center justify-center gap-3 sm:gap-4 max-w-lg mx-auto mb-14">
-          <div className="w-12 h-12 rounded-2xl bg-farm-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-farm-700/20">
-            <Wheat className="w-6 h-6 text-white" />
+          <div className="relative flex-shrink-0">
+            <div className="absolute inset-0 rounded-2xl bg-farm-500/40 blur-lg -z-10" aria-hidden="true" />
+            <div className="w-12 h-12 rounded-2xl bg-farm-700 flex items-center justify-center shadow-lg shadow-farm-700/20 ring-1 ring-white/20">
+              <Wheat className="w-6 h-6 text-white" />
+            </div>
           </div>
           <div className="flex-1 relative border-t-2 border-dashed border-farm-200 dark:border-farm-800">
             <RefreshCw className="w-3.5 h-3.5 text-farm-400 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-950 rounded-full" />
@@ -458,7 +465,7 @@ export function LandingPage() {
               <div
                 key={name}
                 title={name}
-                className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-900 border-2 border-farm-200 dark:border-farm-800 flex items-center justify-center shadow-sm"
+                className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-900 border-2 border-farm-200 dark:border-farm-800 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <Icon className="w-5 h-5 text-farm-700 dark:text-farm-400" />
               </div>
@@ -469,7 +476,7 @@ export function LandingPage() {
         <Reveal className="grid sm:grid-cols-3 gap-5" delayMs={100}>
           {INTEGRATIONS.map(({ icon: Icon, name, desc }) => (
             <div key={name} className="card hover:shadow-lg hover:-translate-y-0.5 hover:border-farm-300 dark:hover:border-farm-700 transition-all duration-200">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-600 to-farm-800 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-farm-600 to-farm-800 ring-1 ring-black/5 shadow-md shadow-farm-900/10 flex items-center justify-center mb-3">
                 <Icon className="w-5 h-5 text-white" />
               </div>
               <h3 className="font-bold text-gray-900 dark:text-gray-100">{name}</h3>
@@ -484,7 +491,8 @@ export function LandingPage() {
       </section>
 
       {/* ── Compliance ──────────────────────────────────────────────────── */}
-      <section id="compliance" className="max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+      <section id="compliance" className="relative overflow-hidden max-w-6xl mx-auto px-4 sm:px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-earth-100/60 dark:bg-earth-900/10 blur-3xl -z-10" aria-hidden="true" />
         <Reveal>
           <Eyebrow icon={ShieldCheck} tone="earth">Audit-ready</Eyebrow>
           <h2 className="font-display text-4xl font-bold tracking-tight text-balance">Compliance paperwork, sorted automatically</h2>
@@ -517,7 +525,10 @@ export function LandingPage() {
               { name: 'Trifluralin 480', paddock: 'East 40', whp: 0 },
               { name: 'Chlorpyrifos 500', paddock: 'River Flat', whp: 14 },
             ].map((r) => (
-              <div key={r.name} className="flex items-center justify-between text-sm border-b border-gray-50 dark:border-gray-800 pb-2.5">
+              <div
+                key={r.name}
+                className={`flex items-center justify-between text-sm border-b border-gray-50 dark:border-gray-800 pb-2.5 pl-3 border-l-2 ${r.whp > 0 ? 'border-l-amber-400' : 'border-l-farm-400'}`}
+              >
                 <div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">{r.name}</p>
                   <p className="text-xs text-gray-400">{r.paddock}</p>

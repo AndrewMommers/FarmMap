@@ -6,6 +6,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { StatCard } from '../components/ui/StatCard';
 import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddTaskModal } from '../components/modals/AddTaskModal';
+import { TaskDetailModal } from '../components/modals/TaskDetailModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { useCanWrite } from '../lib/permissions';
@@ -25,6 +26,7 @@ export function TasksPage() {
   const [search, setSearch] = useState('');
   const [showAddTask, setShowAddTask] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
+  const [viewingTask, setViewingTask] = useState<Task | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'title' | 'status'>('priority');
@@ -104,6 +106,14 @@ export function TasksPage() {
   return (
     <div className="space-y-6">
       <AddTaskModal open={showAddTask || !!editingTask} onClose={() => { setShowAddTask(false); setEditingTask(undefined); }} initialData={editingTask} />
+      <TaskDetailModal
+        open={!!viewingTask}
+        onClose={() => setViewingTask(undefined)}
+        task={viewingTask}
+        canWrite={canWriteTasks}
+        onEdit={setEditingTask}
+        onDelete={handleDelete}
+      />
       <PageHeader
         title="Tasks & Work Orders"
         subtitle="Farm task management and work scheduling"
@@ -153,9 +163,13 @@ export function TasksPage() {
       {/* Task cards */}
       <div className="space-y-3">
         {filtered.map(task => (
-          <div key={task.id} className={`card flex items-start gap-4 ${task.status === 'overdue' ? 'border-red-200 bg-red-50/30' : task.status === 'done' ? 'opacity-60' : ''}`}>
+          <div
+            key={task.id}
+            onClick={() => setViewingTask(task)}
+            className={`card flex items-start gap-4 cursor-pointer hover:border-farm-300 dark:hover:border-farm-700 transition-colors ${task.status === 'overdue' ? 'border-red-200 bg-red-50/30' : task.status === 'done' ? 'opacity-60' : ''}`}
+          >
             <button
-              onClick={() => canWriteTasks && task.status !== 'done' && markDone(task.id)}
+              onClick={(e) => { e.stopPropagation(); if (canWriteTasks && task.status !== 'done') markDone(task.id); }}
               className={`mt-0.5 flex-shrink-0 transition-transform ${canWriteTasks ? 'hover:scale-110' : 'cursor-default'}`}
             >
               <StatusIcon status={task.status} />
@@ -176,7 +190,7 @@ export function TasksPage() {
               {task.notes && <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 inline-block">{task.notes}</p>}
             </div>
             {canWriteTasks && (
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 {task.status !== 'done' && (
                   <button className="btn-secondary text-xs py-1.5 px-3" onClick={() => markDone(task.id)}>Done</button>
                 )}

@@ -21,6 +21,7 @@ This complements — but doesn't replace — `git log`, which has the exact comm
 | 13 | [Australian sovereign branding](13-aussie-sovereign-branding.md) | Aussie-owned trust signals, sovereign seal, contour motif |
 | 14 | [Landing page design pass 2](14-landing-design-pass-2.md) | Second visual pass — chips, irregular paddock shapes, polish |
 | 15 | [Landing page animation](15-landing-page-animation.md) | Scroll-reveal and ambient motion, built failure-safe |
+| 16 | [Landing page visual polish](16-landing-page-visual-polish.md) | Gradient text, glow accents, ambient texture, colour-coded compliance rows |
 
 ## Conventions going forward
 

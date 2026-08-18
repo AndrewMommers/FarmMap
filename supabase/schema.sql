@@ -329,6 +329,33 @@ CREATE TABLE IF NOT EXISTS announcements (
 );
 
 -- ============================================================
+-- Migrations — safe to re-run against an already-deployed database.
+-- (New installs get these columns from the CREATE TABLE statements above
+-- already; these ALTERs exist purely to bring existing databases up to date.)
+-- Must run before the RLS section below — several policies/functions there
+-- reference columns added here (farm_users.user_id, custom_permissions).
+-- ============================================================
+
+ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_provider    TEXT;
+ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_boundary_id TEXT;
+
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_provider   TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_id         TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS engine_hours_synced NUMERIC;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_telemetry_at   TIMESTAMPTZ;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_location       JSONB;
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_provider TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_id       TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_status    TEXT;
+
+ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS custom_permissions JSONB;
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location    JSONB;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location_at TIMESTAMPTZ;
+
+-- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
 
@@ -540,31 +567,6 @@ CREATE POLICY integration_connections_read  ON integration_connections FOR SELEC
 CREATE POLICY integration_connections_write ON integration_connections FOR ALL
   USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()))
   WITH CHECK (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
-
--- ============================================================
--- Migrations — safe to re-run against an already-deployed database.
--- (New installs get these columns from the CREATE TABLE statements above
--- already; these ALTERs exist purely to bring existing databases up to date.)
--- ============================================================
-
-ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_provider    TEXT;
-ALTER TABLE paddocks  ADD COLUMN IF NOT EXISTS external_boundary_id TEXT;
-
-ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_provider   TEXT;
-ALTER TABLE equipment ADD COLUMN IF NOT EXISTS external_id         TEXT;
-ALTER TABLE equipment ADD COLUMN IF NOT EXISTS engine_hours_synced NUMERIC;
-ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_telemetry_at   TIMESTAMPTZ;
-ALTER TABLE equipment ADD COLUMN IF NOT EXISTS last_location       JSONB;
-
-ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_provider TEXT;
-ALTER TABLE transactions ADD COLUMN IF NOT EXISTS external_id       TEXT;
-ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_status    TEXT;
-
-ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
-ALTER TABLE farm_users ADD COLUMN IF NOT EXISTS custom_permissions JSONB;
-
-ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location    JSONB;
-ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location_at TIMESTAMPTZ;
 
 -- ============================================================
 -- Realtime — enable replication on key tables

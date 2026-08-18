@@ -39,12 +39,12 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 
 ## Compliance
 
-| Feature | Status |
-|---|---|
-| Chemical use register (built from spray records) | ✅ |
-| Withholding-period (WHP) tracker & alerts | ✅ |
-| Register PDF export | ✅ |
-| Regulatory document list (MSDS, PIC, licences) | ✅ (static reference list, not user-uploadable) |
+| Feature | Status | Notes |
+|---|---|---|
+| Chemical use register (built from spray records) | ✅ | |
+| Withholding-period (WHP) tracker & alerts | ✅ | |
+| Register PDF export | ✅ | |
+| Regulatory document list (MSDS, PIC, licences) | ❌ | Hardcoded mock list, not real per-farm documents — no storage/upload exists yet, and the "View" button is a stub that doesn't open anything ([#21](https://github.com/AndrewMommers/FarmMap/issues/21)) |
 
 ## Team & access
 

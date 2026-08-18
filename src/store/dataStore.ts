@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task, User, Device, GeofenceEvent,
-  TaskStatus, FenceLine, MapFeature, MapFeatureType,
+  TaskStatus, FenceLine, MapFeature, MapFeatureType, Announcement,
 } from '../types';
 import * as mock from '../data/mockData';
 import { supabase } from '../lib/supabase';
@@ -35,6 +35,7 @@ interface DataStore {
   users: User[];
   devices: Device[];
   geofenceEvents: GeofenceEvent[];
+  announcements: Announcement[];
   /** True while the initial Supabase data load is running. */
   dataLoading: boolean;
 
@@ -110,6 +111,9 @@ interface DataStore {
 
   // ── Geofencing ────────────────────────────────────────────────────────────
   addGeofenceEvent: (farmId: string, data: Omit<GeofenceEvent, 'id' | 'farmId' | 'occurredAt'>) => Promise<GeofenceEvent>;
+
+  // ── Announcements ─────────────────────────────────────────────────────────
+  addAnnouncement: (farmId: string, data: Omit<Announcement, 'id' | 'farmId' | 'createdAt'>) => Announcement;
 }
 
 const EMPTY: Omit<DataStore,
@@ -124,11 +128,12 @@ const EMPTY: Omit<DataStore,
   'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
   'addEquipment' | 'updateEquipment' | 'deleteEquipment' | 'addMaintenanceLog' |
   'addUser' | 'updateUser' | 'ensureOwnerProfile' |
-  'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent'
+  'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent' | 'addAnnouncement'
 > = {
   farms: [], paddocks: [], fenceLines: [], mapFeatures: [], livestockMobs: [], livestock: [], crops: [],
   sprayRecords: [], equipment: [], maintenanceLogs: [], transactions: [],
-  budgets: [], inventory: [], tasks: [], users: [], devices: [], geofenceEvents: [], dataLoading: false,
+  budgets: [], inventory: [], tasks: [], users: [], devices: [], geofenceEvents: [], announcements: [],
+  dataLoading: false,
 };
 
 export const useDataStore = create<DataStore>()((set, get) => ({
@@ -150,7 +155,7 @@ export const useDataStore = create<DataStore>()((set, get) => ({
 
       const [
         paddocksRes, mobsRes, livestockRes, cropsRes, sprayRes,
-        equipRes, txRes, budgetRes, invRes, tasksRes, usersRes, devicesRes, geofenceRes,
+        equipRes, txRes, budgetRes, invRes, tasksRes, usersRes, devicesRes, geofenceRes, announcementsRes,
       ] = await Promise.all([
         supabase.from('paddocks').select('*').in('farm_id', farmIds),
         supabase.from('livestock_mobs').select('*').in('farm_id', farmIds),
@@ -165,6 +170,7 @@ export const useDataStore = create<DataStore>()((set, get) => ({
         supabase.from('farm_users').select('*').in('farm_id', farmIds),
         supabase.from('devices').select('*').in('farm_id', farmIds),
         supabase.from('geofence_events').select('*').in('farm_id', farmIds).order('occurred_at', { ascending: false }).limit(200),
+        supabase.from('announcements').select('*').in('farm_id', farmIds).order('created_at', { ascending: false }).limit(100),
       ]);
 
       const farmEquipment = mapRows<Equipment>(equipRes.data);
@@ -196,6 +202,7 @@ export const useDataStore = create<DataStore>()((set, get) => ({
         users:           mapRows<User>(usersRes.data),
         devices:         mapRows<Device>(devicesRes.data),
         geofenceEvents:  mapRows<GeofenceEvent>(geofenceRes.data),
+        announcements:   mapRows<Announcement>(announcementsRes.data),
         dataLoading: false,
       });
     } catch (err) {
@@ -226,6 +233,7 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       users:           mock.users,
       devices:         mock.devices,
       geofenceEvents:  mock.geofenceEvents,
+      announcements:   mock.announcements,
       dataLoading:     false,
     });
   },
@@ -307,6 +315,12 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'livestock_animals' }, (p) => {
         const id = (p.old as { id: string }).id;
         set((s) => ({ livestock: s.livestock.filter((x) => x.id !== id) }));
+      })
+      // Announcements
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, (p) => {
+        const row = dbToJs<Announcement>(p.new as Record<string, unknown>);
+        if (farmIds.includes(row.farmId))
+          set((s) => ({ announcements: [row, ...s.announcements.filter((x) => x.id !== row.id)].slice(0, 100) }));
       })
       .subscribe();
 
@@ -598,6 +612,16 @@ export const useDataStore = create<DataStore>()((set, get) => ({
     set((s) => ({ geofenceEvents: [record, ...s.geofenceEvents].slice(0, 200) }));
     const { error } = await supabase.from('geofence_events').insert(jsToDb(record as unknown as Record<string, unknown>));
     if (error) throw new Error(error.message);
+    return record;
+  },
+
+  // ── Announcements ─────────────────────────────────────────────────────────
+
+  addAnnouncement: (farmId, data) => {
+    const record: Announcement = { ...data, id: uid(), farmId, createdAt: new Date().toISOString() };
+    set((s) => ({ announcements: [record, ...s.announcements].slice(0, 100) }));
+    supabase.from('announcements').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addAnnouncement:', error.message); });
     return record;
   },
 }));

@@ -2,6 +2,7 @@ import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task,
   WeatherReading, RainfallSummary, User, FenceLine, MapFeature, Device, GeofenceEvent,
+  Announcement,
 } from '../types';
 
 // ─── Farm ─────────────────────────────────────────────────────────────────────
@@ -274,6 +275,14 @@ export const geofenceEvents: GeofenceEvent[] = [
   { id: 'gf-1', farmId: 'farm-1', deviceId: 'dv-1', paddockId: 'p-2', type: 'exit',  occurredAt: '2025-06-29T07:52:00Z' },
   { id: 'gf-2', farmId: 'farm-1', deviceId: 'dv-1', paddockId: 'p-1', type: 'enter', occurredAt: '2025-06-29T08:05:00Z' },
   { id: 'gf-3', farmId: 'farm-1', deviceId: 'dv-2', paddockId: 'p-2', type: 'enter', occurredAt: '2025-06-28T17:10:00Z' },
+];
+
+// ─── Announcements ───────────────────────────────────────────────────────────
+
+export const announcements: Announcement[] = [
+  { id: 'ann-1', farmId: 'farm-1', authorName: 'James Mackenzie', message: 'Spraying North Flat this afternoon — keep clear until tomorrow morning.', createdAt: '2025-06-29T06:30:00Z' },
+  { id: 'ann-2', farmId: 'farm-1', authorName: 'James Mackenzie', message: 'New Holland CR9.90 booked in for service Thursday — use the John Deere if you need a header before then.', createdAt: '2025-06-27T15:10:00Z' },
+  { id: 'ann-3', farmId: 'farm-2', authorName: 'Sarah Thornton', message: 'Lamb drafting moved to Friday, weather permitting.', createdAt: '2025-06-28T09:00:00Z' },
 ];
 
 // ─── Fence Lines ──────────────────────────────────────────────────────────────

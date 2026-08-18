@@ -307,6 +307,21 @@ CREATE TABLE IF NOT EXISTS geofence_events (
   occurred_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Announcements ────────────────────────────────────────────────────────────
+-- A simple farm-wide broadcast feed — anyone with access to the farm posts,
+-- everyone sees it. Not threaded, no DMs; author_name is denormalized so
+-- posts still display correctly for farm_users rows without their own
+-- Supabase Auth login (see docs/DEVICES.md on the current single-owner-auth
+-- reality).
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id          TEXT PRIMARY KEY,
+  farm_id     TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  author_name TEXT NOT NULL,
+  message     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
@@ -326,6 +341,7 @@ ALTER TABLE tasks           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE farm_users      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE devices         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE geofence_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE announcements   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_tokens      ENABLE ROW LEVEL SECURITY; -- no policies — service_role only
 
@@ -349,6 +365,7 @@ CREATE POLICY tasks_owner           ON tasks           FOR ALL USING (farm_id IN
 CREATE POLICY farm_users_owner      ON farm_users      FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 CREATE POLICY devices_owner         ON devices         FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 CREATE POLICY geofence_events_owner ON geofence_events FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
+CREATE POLICY announcements_owner   ON announcements   FOR ALL USING (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 
 -- Integration connections: farm owner can read/manage status rows, but never
 -- the token vault above (integration_tokens has no policies at all).
@@ -384,4 +401,4 @@ ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_location_at TIMESTAMPTZ;
 -- Run in Supabase Dashboard → Database → Replication, OR:
 -- ============================================================
 
--- ALTER PUBLICATION supabase_realtime ADD TABLE paddocks, tasks, transactions, inventory, livestock_mobs;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE paddocks, tasks, transactions, inventory, livestock_mobs, announcements;

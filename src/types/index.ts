@@ -288,6 +288,16 @@ export interface User {
   lastLogin?: string;
 }
 
+// ─── Announcements ──────────────────────────────────────────────────────────
+
+export interface Announcement {
+  id: string;
+  farmId: string;
+  authorName: string;
+  message: string;
+  createdAt: string;
+}
+
 // ─── Devices (Tractor Mode) ─────────────────────────────────────────────────────
 // A "device" is a browser/tablet registered from inside the cab so it can be
 // named, assigned to an operator, and revoked from Settings. Registration

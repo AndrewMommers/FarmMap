@@ -6,6 +6,7 @@ import { StatCard } from '../components/ui/StatCard';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { ExportMenu } from '../components/ui/ExportMenu';
 import { AddEquipmentModal } from '../components/modals/AddEquipmentModal';
+import { LogServiceModal } from '../components/modals/LogServiceModal';
 import { useFarmData } from '../hooks/useFarmData';
 import { useDataStore } from '../store/dataStore';
 import { formatDate, formatCurrency } from '../lib/utils';
@@ -23,6 +24,7 @@ export function EquipmentPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddEquipment, setShowAddEquipment] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | undefined>();
+  const [servicingEquipment, setServicingEquipment] = useState<Equipment | undefined>();
   const { sort: fleetSort, onSort: onFleetSort } = useTableSort('name', 'asc');
   const { sort: logSort, onSort: onLogSort } = useTableSort('date', 'desc');
 
@@ -91,6 +93,7 @@ export function EquipmentPage() {
   return (
     <div className="space-y-6">
       <AddEquipmentModal open={showAddEquipment || !!editingEquipment} onClose={() => { setShowAddEquipment(false); setEditingEquipment(undefined); }} initialData={editingEquipment} />
+      <LogServiceModal open={!!servicingEquipment} onClose={() => setServicingEquipment(undefined)} equipment={servicingEquipment} />
       <PageHeader
         title="Equipment & Fleet"
         subtitle="Machinery, vehicles, and maintenance records"
@@ -168,7 +171,7 @@ export function EquipmentPage() {
               </div>
               {e.notes && <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1">{e.notes}</p>}
               <div className="mt-4 flex gap-2">
-                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => toast('Service record – coming soon')}>Log Service</button>
+                <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setServicingEquipment(e)}>Log Service</button>
                 <button className="flex-1 btn-secondary text-xs py-1.5" onClick={() => setEditingEquipment(e)}><Pencil className="w-3 h-3 mr-1 inline" />Edit</button>
                 <button className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0" title="Delete equipment" onClick={() => handleDelete(e.id, e.name)}><Trash2 className="w-4 h-4" /></button>
               </div>

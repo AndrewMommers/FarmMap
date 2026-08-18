@@ -69,6 +69,10 @@ interface DataStore {
   deleteLivestockMob: (id: string) => void;
   deleteLivestockAnimal: (id: string) => void;
 
+  // ── Crops & Spray Records ───────────────────────────────────────────────────
+  updateCrop: (id: string, data: Partial<Omit<CropRecord, 'id' | 'farmId'>>) => void;
+  addSprayRecord: (farmId: string, data: Omit<SprayRecord, 'id' | 'farmId'>) => SprayRecord;
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
   addTask: (farmId: string, data: Omit<Task, 'id' | 'farmId'>) => Task;
   updateTaskStatus: (id: string, status: TaskStatus) => void;
@@ -90,6 +94,7 @@ interface DataStore {
   addEquipment: (farmId: string, data: Omit<Equipment, 'id' | 'farmId'>) => Equipment;
   updateEquipment: (id: string, data: Partial<Omit<Equipment, 'id' | 'farmId'>>) => void;
   deleteEquipment: (id: string) => void;
+  addMaintenanceLog: (data: Omit<MaintenanceLog, 'id'>) => MaintenanceLog;
 
   // ── Users (team directory / profile) ────────────────────────────────────────
   addUser: (farmId: string, data: Omit<User, 'id' | 'farmId'>) => Promise<User>;
@@ -112,10 +117,11 @@ const EMPTY: Omit<DataStore,
   'addMapFeature' | 'deleteMapFeature' |
   'addLivestockMob' | 'addLivestockAnimal' |
   'updateLivestockMob' | 'updateLivestockAnimal' | 'deleteLivestockMob' | 'deleteLivestockAnimal' |
+  'updateCrop' | 'addSprayRecord' |
   'addTask' | 'updateTaskStatus' | 'updateTask' | 'deleteTask' |
   'addTransaction' | 'updateTransaction' | 'deleteTransaction' | 'addInventoryItem' |
   'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
-  'addEquipment' | 'updateEquipment' | 'deleteEquipment' |
+  'addEquipment' | 'updateEquipment' | 'deleteEquipment' | 'addMaintenanceLog' |
   'addUser' | 'updateUser' | 'ensureOwnerProfile' |
   'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent'
 > = {
@@ -401,6 +407,21 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       .then(({ error }) => { if (error) console.error('[DB] updateLivestockAnimal:', error.message); });
   },
 
+  // ── Crops & Spray Records ────────────────────────────────────────────────
+
+  updateCrop: (id, data) => {
+    set((s) => ({ crops: s.crops.map((c) => c.id === id ? { ...c, ...data } : c) }));
+    supabase.from('crops').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateCrop:', error.message); });
+  },
+  addSprayRecord: (farmId, data) => {
+    const record: SprayRecord = { ...data, id: uid(), farmId };
+    set((s) => ({ sprayRecords: [record, ...s.sprayRecords] }));
+    supabase.from('spray_records').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addSprayRecord:', error.message); });
+    return record;
+  },
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
 
   addTask: (farmId, data) => {
@@ -496,6 +517,13 @@ export const useDataStore = create<DataStore>()((set, get) => ({
     set((s) => ({ equipment: s.equipment.map((e) => e.id === id ? { ...e, ...data } : e) }));
     supabase.from('equipment').update(jsToDb(data as Record<string, unknown>)).eq('id', id)
       .then(({ error }) => { if (error) console.error('[DB] updateEquipment:', error.message); });
+  },
+  addMaintenanceLog: (data) => {
+    const record: MaintenanceLog = { ...data, id: uid() };
+    set((s) => ({ maintenanceLogs: [record, ...s.maintenanceLogs] }));
+    supabase.from('maintenance_logs').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addMaintenanceLog:', error.message); });
+    return record;
   },
 
   // ── Users (team directory / profile) ────────────────────────────────────────

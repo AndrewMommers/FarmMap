@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { CompliancePage } from './pages/CompliancePage';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { CreateFarmPage } from './pages/onboarding/CreateFarmPage';
 import { useAuthStore } from './store/authStore';
 import { useDataStore } from './store/dataStore';
@@ -75,6 +76,19 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode, session?.user?.id, farms.length]);
+
+  // ── Password recovery link ────────────────────────────────────────────────
+  // Handled before every other branch: clicking the reset-password email
+  // link establishes a session, which would otherwise route straight past
+  // /login and into onboarding/the main app instead of letting the user set
+  // a new password first.
+  if (window.location.pathname === '/reset-password') {
+    return (
+      <BrowserRouter>
+        <ResetPasswordPage />
+      </BrowserRouter>
+    );
+  }
 
   // ── Demo mode: go straight to main app ───────────────────────────────────
   if (demoMode && farms.length > 0) {

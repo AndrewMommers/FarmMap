@@ -6,7 +6,7 @@ import { useDataStore } from '../../store/dataStore';
 import { Wheat, Eye, EyeOff, Loader2, PlayCircle, ArrowLeft } from 'lucide-react';
 
 export function AuthPage() {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,7 +14,7 @@ export function AuthPage() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuthStore();
+  const { signIn, signUp, requestPasswordReset } = useAuthStore();
   const { setDemoMode } = useAppStore();
   const { loadDemoData } = useDataStore();
 
@@ -24,7 +24,11 @@ export function AuthPage() {
     setInfo('');
     setLoading(true);
 
-    if (mode === 'login') {
+    if (mode === 'forgot') {
+      const err = await requestPasswordReset(email);
+      if (err) setError(err);
+      else setInfo("If that email has an account, we've sent a link to reset your password.");
+    } else if (mode === 'login') {
       const err = await signIn(email, password);
       if (err) setError(err);
     } else {
@@ -56,21 +60,40 @@ export function AuthPage() {
         {/* Card */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8">
           {/* Mode tabs */}
-          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
-            {(['login', 'register'] as const).map((m) => (
+          {mode !== 'forgot' && (
+            <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
+              {(['login', 'register'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setError(''); setInfo(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    mode === m
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  {m === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {mode === 'forgot' && (
+            <div className="mb-6">
               <button
-                key={m}
-                onClick={() => { setMode(m); setError(''); setInfo(''); }}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  mode === m
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+                type="button"
+                onClick={() => { setMode('login'); setError(''); setInfo(''); }}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
-                {m === 'login' ? 'Sign In' : 'Create Account'}
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to sign in
               </button>
-            ))}
-          </div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-3">Reset your password</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Enter the email on your account and we'll send you a link to set a new password.
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
@@ -98,28 +121,41 @@ export function AuthPage() {
                 required
               />
             </div>
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <input
-                  className="input pr-10"
-                  type={showPw ? 'text' : 'password'}
-                  placeholder={mode === 'register' ? 'Min. 6 characters' : '••••••••'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  tabIndex={-1}
-                >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+            {mode !== 'forgot' && (
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="label mb-0">Password</label>
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => { setMode('forgot'); setError(''); setInfo(''); }}
+                      className="text-xs font-medium text-farm-600 dark:text-farm-400 hover:underline mb-1"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    className="input pr-10"
+                    type={showPw ? 'text' : 'password'}
+                    placeholder={mode === 'register' ? 'Min. 6 characters' : '••••••••'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    tabIndex={-1}
+                  >
+                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">
@@ -139,7 +175,7 @@ export function AuthPage() {
             >
               {loading
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : mode === 'login' ? 'Sign In' : 'Create Account'
+                : mode === 'login' ? 'Sign In' : mode === 'forgot' ? 'Send Reset Link' : 'Create Account'
               }
             </button>
           </form>

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useDataStore } from '../../store/dataStore';
 import type { FarmType, State } from '../../types';
-import { Wheat, MapPin, Loader2 } from 'lucide-react';
+import { Wheat, MapPin, Loader2, ArrowLeft, LogOut } from 'lucide-react';
 
 const FARM_TYPES: { value: FarmType; label: string }[] = [
   { value: 'mixed',       label: 'Mixed Farming' },
@@ -21,10 +21,16 @@ const FARM_TYPES: { value: FarmType; label: string }[] = [
 const STATES: State[] = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 
 export function CreateFarmPage() {
-  const { user } = useAuthStore();
+  const { user, signOut } = useAuthStore();
   const { addFarm, loadFromSupabase, farms } = useDataStore();
   const navigate = useNavigate();
   const isAddingExtra = farms.length > 0;
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+  };
 
   const [form, setForm] = useState({
     name: '',
@@ -72,6 +78,21 @@ export function CreateFarmPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-farm-900 via-farm-800 to-earth-900 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
+        {isAddingExtra ? (
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-farm-300 hover:text-farm-100 mb-6">
+            <ArrowLeft className="w-4 h-4" />
+            Back to dashboard
+          </Link>
+        ) : (
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-farm-300 hover:text-farm-100 mb-6 disabled:opacity-50"
+          >
+            {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+            {signingOut ? 'Signing out…' : `Not ${user?.email ?? 'you'}? Sign out`}
+          </button>
+        )}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-farm-500 mb-4 shadow-lg">
             <Wheat className="w-8 h-8 text-white" />

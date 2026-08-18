@@ -22,6 +22,7 @@ This complements — but doesn't replace — `git log`, which has the exact comm
 | 14 | [Landing page design pass 2](14-landing-design-pass-2.md) | Second visual pass — chips, irregular paddock shapes, polish |
 | 15 | [Landing page animation](15-landing-page-animation.md) | Scroll-reveal and ambient motion, built failure-safe |
 | 16 | [Landing page visual polish](16-landing-page-visual-polish.md) | Gradient text, glow accents, ambient texture, colour-coded compliance rows |
+| 17 | [Portal completeness, notifications, Farm Chat](17-portal-completeness-and-notifications.md) | Punch-list cleanup, full notification system, Farm Chat, a demo-mode bug fix, and a landing page update |
 
 ## Conventions going forward
 

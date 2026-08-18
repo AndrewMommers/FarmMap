@@ -68,7 +68,9 @@ docs/
 
 ## Docs
 
+- [`docs/FEATURES.md`](docs/FEATURES.md) — what's complete vs. not, across the whole app
 - [`docs/versions/`](docs/versions/README.md) — full project history, one file per phase of work
+- [`docs/TODO.md`](docs/TODO.md) — outstanding-work punch list, tracked on [GitHub Issues](https://github.com/AndrewMommers/FarmMap/issues)
 - [`docs/DEVICES.md`](docs/DEVICES.md), [`docs/GEOFENCING.md`](docs/GEOFENCING.md) — how device pairing and geofencing work
 - [`docs/integrations/`](docs/integrations/) — John Deere, Xero, Zepto integration details
 - [`docs/guides/`](docs/guides/) — end-user setup guides

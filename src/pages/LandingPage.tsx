@@ -6,6 +6,7 @@ import {
   Wheat, Map, Beef, Sprout, Wrench, DollarSign, Package, CloudRain,
   CheckSquare, FileBarChart, ShieldCheck, Tractor, PlayCircle, ArrowRight,
   Menu, X, Check, Landmark, Zap, RefreshCw, MapPin, Users, Compass, BadgeCheck,
+  MessageCircle, BellRing,
 } from 'lucide-react';
 
 const INTEGRATIONS = [
@@ -33,11 +34,12 @@ const FEATURES = [
   { icon: Wrench, title: 'Equipment & Maintenance', tone: 'farm', desc: 'Service schedules, maintenance logs and running costs for every tractor, harvester and pump on the property.' },
   { icon: DollarSign, title: 'Finance & GST', tone: 'earth', desc: 'Income and expenses in AUD, categorised and GST-flagged, budgeted by financial year — ready for your accountant.' },
   { icon: Package, title: 'Inventory', tone: 'earth', desc: 'Chemicals, fertiliser, feed and parts with low-stock alerts so you’re never caught short mid-season.' },
-  { icon: CloudRain, title: 'Weather & Rainfall', tone: 'sky', desc: 'Track rainfall against long-term averages and keep a weather history for every paddock.' },
+  { icon: CloudRain, title: 'Weather & Rainfall', tone: 'sky', desc: 'Live current conditions and a running rainfall history for every paddock, pulled straight from the Bureau.' },
   { icon: CheckSquare, title: 'Tasks', tone: 'farm', desc: 'Assign jobs to the team, link them to a paddock or a machine, and never lose track of what’s overdue.' },
   { icon: ShieldCheck, title: 'Compliance', tone: 'earth', desc: 'Chemical use register, MSDS sheets, PIC and biosecurity records, all in one auditable place.' },
   { icon: FileBarChart, title: 'Reports & Export', tone: 'sky', desc: 'One-click PDF and CSV exports for the bank, the accountant, or the auditor.' },
   { icon: Users, title: 'Team & Access', tone: 'sky', desc: 'Owners, managers, operators, agronomists and accountants each get their own role — with a shared contact directory reachable straight from Tractor Mode.' },
+  { icon: MessageCircle, title: 'Farm Chat', tone: 'sky', desc: 'A shared, farm-wide chat so updates and heads-ups reach everyone in real time — no relayed messages, no missed texts.' },
 ] as const;
 
 const FEATURE_TONE = {
@@ -407,10 +409,18 @@ export function LandingPage() {
                   <span className="w-3 h-3 rounded-full bg-sky-400 ring-2 ring-white/80" />
                 </span>
               </div>
-              {/* Geofence alert toast */}
-              <div className="mt-3 bg-farm-800 rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs font-semibold text-farm-100">
-                📍 Entered North Flat
-                <span className="ml-auto text-farm-400 font-normal">just now</span>
+              {/* Live alert toasts */}
+              <div className="mt-3 space-y-1.5">
+                <div className="bg-farm-800 rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs font-semibold text-farm-100">
+                  <MapPin className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                  Entered North Flat
+                  <span className="ml-auto text-farm-400 font-normal">just now</span>
+                </div>
+                <div className="bg-farm-800 rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs font-semibold text-farm-100">
+                  <BellRing className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  Low stock: Cereal Hay
+                  <span className="ml-auto text-farm-400 font-normal">2m ago</span>
+                </div>
               </div>
             </div>
           </Reveal>
@@ -425,6 +435,7 @@ export function LandingPage() {
               {[
                 'Live GPS position while Tractor Mode is open, with a plain-English status always on screen',
                 'Geofence alerts the moment you cross into or out of a paddock, logged automatically',
+                'Overdue tasks, low stock and equipment service pop up instantly — with browser push notifications so you don’t miss them even when FarmMap isn’t the active tab',
                 'Tap-to-call your team straight from the cab — no hunting for a number',
                 'Register a device once; revoke it centrally from any browser if a tablet goes missing',
               ].map((item) => (

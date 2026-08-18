@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
 import { Wheat, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -12,6 +11,13 @@ import { Wheat, Eye, EyeOff, Loader2 } from 'lucide-react';
  * sign out afterward: the whole point is joining the farm, so once the
  * password is set and the farm_users row is claimed, it navigates straight
  * into the app.
+ *
+ * Uses a hard `window.location` redirect rather than react-router's
+ * `navigate()`: this page is mounted in App.tsx inside its own standalone
+ * `<BrowserRouter>` with no `<Routes>` (same as ResetPasswordPage), so there
+ * is nothing listening for a client-side route change to swap it out. A full
+ * reload re-runs App()'s top-level routing logic, which by then sees the
+ * still-valid session and the newly-claimed farm.
  */
 export function AcceptInvitePage() {
   const [password, setPassword] = useState('');
@@ -20,7 +26,6 @@ export function AcceptInvitePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { updatePassword } = useAuthStore();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +65,7 @@ export function AcceptInvitePage() {
         return;
       }
 
-      navigate('/', { replace: true });
+      window.location.href = '/';
     } finally {
       setLoading(false);
     }

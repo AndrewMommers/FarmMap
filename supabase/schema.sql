@@ -583,6 +583,127 @@ CREATE POLICY integration_connections_write ON integration_connections FOR ALL
   WITH CHECK (farm_id IN (SELECT id FROM farms WHERE user_id = auth.uid()));
 
 -- ============================================================
+-- FarmMap Staff Portal + Support Centre
+-- ============================================================
+
+-- ── Platform staff ───────────────────────────────────────────────────────────
+-- Distinct from any farm's per-farm role (owner/manager/etc.) — this is a
+-- platform-wide permission. No client-facing RLS policies at all (same
+-- pattern as integration_tokens): only the staff-portal Edge Function, using
+-- the service_role key, ever reads or writes this table. Deliberately NOT
+-- OR'd into any customer-facing RLS policy — see docs/versions/ for why
+-- (loosening farms_read etc. for staff would leak every customer's farm into
+-- a staff member's own ordinary dashboard load).
+CREATE TABLE IF NOT EXISTS platform_staff (
+  email      TEXT PRIMARY KEY,   -- always stored lowercased
+  tier       TEXT NOT NULL DEFAULT 'external' CHECK (tier IN ('internal','external')),
+  is_admin   BOOLEAN NOT NULL DEFAULT false,
+  active     BOOLEAN NOT NULL DEFAULT true,
+  added_by   TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE platform_staff ENABLE ROW LEVEL SECURITY;
+
+-- Bootstrap Administrator so someone can add external staff from day one.
+INSERT INTO platform_staff (email, tier, is_admin, added_by)
+VALUES (LOWER('andrew.mommers@gmail.com'), 'internal', true, 'system')
+ON CONFLICT (email) DO NOTHING;
+
+-- Every staff action (view/fix/reply), service_role-only, same as above.
+CREATE TABLE IF NOT EXISTS staff_audit_log (
+  id          BIGSERIAL PRIMARY KEY,
+  staff_email TEXT NOT NULL,
+  farm_id     TEXT REFERENCES farms(id) ON DELETE SET NULL,
+  action      TEXT NOT NULL,
+  detail      JSONB,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE staff_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- ── Support tickets ──────────────────────────────────────────────────────────
+-- Unlike platform_staff above, these ARE customer-facing — any active farm
+-- member can raise/read/update their own farm's tickets, same "open within
+-- the farm" reasoning as announcements_access below. Staff read/reply across
+-- every farm's tickets exclusively through the staff-portal function.
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id                   TEXT PRIMARY KEY,
+  farm_id              TEXT NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+  subject              TEXT NOT NULL,
+  category             TEXT NOT NULL DEFAULT 'general', -- 'account' | 'bug' | 'question' | 'general'
+  status               TEXT NOT NULL DEFAULT 'open',     -- 'open' | 'in_progress' | 'resolved' | 'closed'
+  priority             TEXT NOT NULL DEFAULT 'normal',   -- 'low' | 'normal' | 'high'
+  created_by_name      TEXT NOT NULL,
+  created_by_email     TEXT NOT NULL,
+  -- Set only via the staff-portal function (self-assign). RLS can't restrict
+  -- individual columns, so a customer's own client could technically write
+  -- this directly — low-stakes (informational only, no elevated access) and
+  -- simply never exposed as a field in the customer-facing UI.
+  assigned_staff_email TEXT,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS support_ticket_messages (
+  id           TEXT PRIMARY KEY,
+  ticket_id    TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  author_type  TEXT NOT NULL,  -- 'customer' | 'staff'
+  author_name  TEXT NOT NULL,
+  author_email TEXT,
+  message      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE support_tickets         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE support_ticket_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS support_tickets_access ON support_tickets;
+DROP POLICY IF EXISTS support_ticket_messages_access ON support_ticket_messages;
+
+CREATE POLICY support_tickets_access ON support_tickets FOR ALL
+  USING (get_farm_role(farm_id) IS NOT NULL)
+  WITH CHECK (get_farm_role(farm_id) IS NOT NULL);
+
+CREATE POLICY support_ticket_messages_access ON support_ticket_messages FOR ALL
+  USING (ticket_id IN (SELECT id FROM support_tickets WHERE get_farm_role(farm_id) IS NOT NULL))
+  WITH CHECK (ticket_id IN (SELECT id FROM support_tickets WHERE get_farm_role(farm_id) IS NOT NULL));
+
+-- ── Client error log ─────────────────────────────────────────────────────────
+-- Feeds the Staff Portal's "Recent Errors" section so staff can see what
+-- actually broke for a customer instead of relying on their description.
+-- Customers can insert and read back only their own rows (harmless — it's
+-- their own diagnostic data); staff read across every customer exclusively
+-- through the staff-portal function's service_role client, same as always.
+--
+-- The read policy isn't optional even though customers don't need it in the
+-- UI: Postgres RLS requires a freshly-inserted row to also pass an
+-- applicable SELECT policy, not just the INSERT policy's own WITH CHECK —
+-- the same gotcha already hit (in the opposite direction, for UPDATE) with
+-- farm_users_claim_own_invite. An insert-only table with zero SELECT policy
+-- can never actually be inserted into.
+
+CREATE TABLE IF NOT EXISTS client_error_log (
+  id         BIGSERIAL PRIMARY KEY,
+  farm_id    TEXT REFERENCES farms(id) ON DELETE SET NULL,  -- nullable: errors can happen pre-onboarding
+  user_id    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_email TEXT,
+  message    TEXT NOT NULL,
+  stack      TEXT,
+  path       TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE client_error_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS client_error_log_insert ON client_error_log;
+DROP POLICY IF EXISTS client_error_log_read ON client_error_log;
+
+CREATE POLICY client_error_log_insert ON client_error_log FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+CREATE POLICY client_error_log_read ON client_error_log FOR SELECT
+  USING (user_id = auth.uid());
+
+-- ============================================================
 -- Realtime — enable replication on key tables
 -- Run in Supabase Dashboard → Database → Replication, OR:
 -- ============================================================

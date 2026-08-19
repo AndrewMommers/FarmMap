@@ -14,6 +14,8 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CompliancePage } from './pages/CompliancePage';
 import { ChatPage } from './pages/ChatPage';
+import { SupportPage } from './pages/SupportPage';
+import { StaffPortalPage } from './pages/staff/StaffPortalPage';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
@@ -132,6 +134,7 @@ export default function App() {
             <Route path="/reports"     element={<ReportsPage />} />
             <Route path="/compliance"  element={<CompliancePage />} />
             <Route path="/chat"        element={<ChatPage />} />
+            <Route path="/support"     element={<SupportPage />} />
             <Route path="/settings"    element={<SettingsPage />} />
             <Route path="*"            element={<Navigate to="/" replace />} />
           </Route>
@@ -166,6 +169,19 @@ export default function App() {
     );
   }
 
+  // ── Staff Portal ──────────────────────────────────────────────────────────
+  // Intercepted here (after the session check, before onboarding): a
+  // staff-only account with no farm of their own would otherwise get shunted
+  // into CreateFarmPage below and never reach /staff. Standalone — not
+  // AppLayout, which assumes farm context via useFarmData().
+  if (window.location.pathname === '/staff') {
+    return (
+      <BrowserRouter>
+        <StaffPortalPage />
+      </BrowserRouter>
+    );
+  }
+
   // ── Authenticated but no farms yet → onboarding ───────────────────────────
   if (farms.length === 0) {
     return (
@@ -192,6 +208,7 @@ export default function App() {
           <Route path="/reports"     element={<ReportsPage />} />
           <Route path="/compliance"  element={<CompliancePage />} />
           <Route path="/chat"        element={<ChatPage />} />
+          <Route path="/support"     element={<SupportPage />} />
           <Route path="/settings"    element={<SettingsPage />} />
           <Route path="/new-farm"    element={<CreateFarmPage />} />
           <Route path="*"            element={<Navigate to="/" replace />} />

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   Farm, Paddock, LivestockAnimal, LivestockMobGroup, CropRecord, SprayRecord,
   Equipment, MaintenanceLog, Transaction, Budget, InventoryItem, Task, User, Device, GeofenceEvent,
-  TaskStatus, FenceLine, MapFeature, MapFeatureType, Announcement,
+  TaskStatus, FenceLine, MapFeature, MapFeatureType, Announcement, SupportTicket, TicketMessage, TicketStatus,
 } from '../types';
 import * as mock from '../data/mockData';
 import { supabase } from '../lib/supabase';
@@ -36,6 +36,8 @@ interface DataStore {
   devices: Device[];
   geofenceEvents: GeofenceEvent[];
   announcements: Announcement[];
+  supportTickets: SupportTicket[];
+  ticketMessages: TicketMessage[];
   /** True while the initial Supabase data load is running. */
   dataLoading: boolean;
 
@@ -114,6 +116,11 @@ interface DataStore {
 
   // ── Announcements ─────────────────────────────────────────────────────────
   addAnnouncement: (farmId: string, data: Omit<Announcement, 'id' | 'farmId' | 'createdAt'>) => Announcement;
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+  addSupportTicket: (farmId: string, data: Omit<SupportTicket, 'id' | 'farmId' | 'status' | 'createdAt' | 'updatedAt'>) => SupportTicket;
+  addTicketMessage: (data: Omit<TicketMessage, 'id' | 'createdAt'>) => TicketMessage;
+  updateTicketStatus: (id: string, status: TicketStatus) => void;
 }
 
 const EMPTY: Omit<DataStore,
@@ -128,11 +135,13 @@ const EMPTY: Omit<DataStore,
   'updateInventoryQty' | 'updateInventoryItem' | 'deleteInventoryItem' |
   'addEquipment' | 'updateEquipment' | 'deleteEquipment' | 'addMaintenanceLog' |
   'addUser' | 'updateUser' | 'ensureOwnerProfile' |
-  'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent' | 'addAnnouncement'
+  'addDevice' | 'updateDevice' | 'deleteDevice' | 'addGeofenceEvent' | 'addAnnouncement' |
+  'addSupportTicket' | 'addTicketMessage' | 'updateTicketStatus'
 > = {
   farms: [], paddocks: [], fenceLines: [], mapFeatures: [], livestockMobs: [], livestock: [], crops: [],
   sprayRecords: [], equipment: [], maintenanceLogs: [], transactions: [],
   budgets: [], inventory: [], tasks: [], users: [], devices: [], geofenceEvents: [], announcements: [],
+  supportTickets: [], ticketMessages: [],
   dataLoading: false,
 };
 
@@ -162,6 +171,7 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       const [
         paddocksRes, mobsRes, livestockRes, cropsRes, sprayRes,
         equipRes, txRes, budgetRes, invRes, tasksRes, usersRes, devicesRes, geofenceRes, announcementsRes,
+        ticketsRes,
       ] = await Promise.all([
         supabase.from('paddocks').select('*').in('farm_id', farmIds),
         supabase.from('livestock_mobs').select('*').in('farm_id', farmIds),
@@ -177,7 +187,14 @@ export const useDataStore = create<DataStore>()((set, get) => ({
         supabase.from('devices').select('*').in('farm_id', farmIds),
         supabase.from('geofence_events').select('*').in('farm_id', farmIds).order('occurred_at', { ascending: false }).limit(200),
         supabase.from('announcements').select('*').in('farm_id', farmIds).order('created_at', { ascending: false }).limit(100),
+        supabase.from('support_tickets').select('*').in('farm_id', farmIds).order('updated_at', { ascending: false }),
       ]);
+
+      const supportTickets = mapRows<SupportTicket>(ticketsRes.data);
+      const ticketIds = supportTickets.map((t) => t.id);
+      const ticketMessagesRes = ticketIds.length
+        ? await supabase.from('support_ticket_messages').select('*').in('ticket_id', ticketIds).order('created_at', { ascending: true })
+        : { data: [] };
 
       const farmEquipment = mapRows<Equipment>(equipRes.data);
       const equipmentIds = farmEquipment.map((e) => e.id);
@@ -209,6 +226,8 @@ export const useDataStore = create<DataStore>()((set, get) => ({
         devices:         mapRows<Device>(devicesRes.data),
         geofenceEvents:  mapRows<GeofenceEvent>(geofenceRes.data),
         announcements:   mapRows<Announcement>(announcementsRes.data),
+        supportTickets,
+        ticketMessages:  mapRows<TicketMessage>(ticketMessagesRes.data),
         dataLoading: false,
       });
     } catch (err) {
@@ -240,6 +259,8 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       devices:         mock.devices,
       geofenceEvents:  mock.geofenceEvents,
       announcements:   mock.announcements,
+      supportTickets:  [],
+      ticketMessages:  [],
       dataLoading:     false,
     });
   },
@@ -638,5 +659,30 @@ export const useDataStore = create<DataStore>()((set, get) => ({
     supabase.from('announcements').insert(jsToDb(record as unknown as Record<string, unknown>))
       .then(({ error }) => { if (error) console.error('[DB] addAnnouncement:', error.message); });
     return record;
+  },
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+
+  addSupportTicket: (farmId, data) => {
+    const now = new Date().toISOString();
+    const record: SupportTicket = { ...data, id: uid(), farmId, status: 'open', createdAt: now, updatedAt: now };
+    set((s) => ({ supportTickets: [record, ...s.supportTickets] }));
+    supabase.from('support_tickets').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addSupportTicket:', error.message); });
+    return record;
+  },
+
+  addTicketMessage: (data) => {
+    const record: TicketMessage = { ...data, id: uid(), createdAt: new Date().toISOString() };
+    set((s) => ({ ticketMessages: [...s.ticketMessages, record] }));
+    supabase.from('support_ticket_messages').insert(jsToDb(record as unknown as Record<string, unknown>))
+      .then(({ error }) => { if (error) console.error('[DB] addTicketMessage:', error.message); });
+    return record;
+  },
+
+  updateTicketStatus: (id, status) => {
+    set((s) => ({ supportTickets: s.supportTickets.map((t) => t.id === id ? { ...t, status } : t) }));
+    supabase.from('support_tickets').update({ status }).eq('id', id)
+      .then(({ error }) => { if (error) console.error('[DB] updateTicketStatus:', error.message); });
   },
 }));

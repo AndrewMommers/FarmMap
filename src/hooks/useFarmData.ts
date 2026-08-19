@@ -38,6 +38,8 @@ export function useFarmData() {
     devices:         store.devices.filter((d) => d.farmId === activeFarmId),
     geofenceEvents:  store.geofenceEvents.filter((g) => g.farmId === activeFarmId),
     announcements:   store.announcements.filter((a) => a.farmId === activeFarmId),
+    supportTickets:  store.supportTickets.filter((t) => t.farmId === activeFarmId),
+    ticketMessages:  store.ticketMessages,
     weatherReadings,
     rainfallSummary,
     weatherLoading,

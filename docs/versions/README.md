@@ -24,6 +24,7 @@ This complements — but doesn't replace — `git log`, which has the exact comm
 | 16 | [Landing page visual polish](16-landing-page-visual-polish.md) | Gradient text, glow accents, ambient texture, colour-coded compliance rows |
 | 17 | [Portal completeness, notifications, Farm Chat](17-portal-completeness-and-notifications.md) | Punch-list cleanup, full notification system, Farm Chat, a demo-mode bug fix, and a landing page update |
 | 18 | [Team invitations & role-based access control](18-team-invites-and-rbac.md) | Real invite flow with its own login, enforced RBAC via RLS, per-user permission overrides (data model now, editing UI to follow) |
+| 19 | [Staff Portal, Support Centre & error logging](19-staff-portal-and-support-centre.md) | Internal/external FarmMap staff with curated account-fix access, a customer support ticket queue, and client-side error capture — all kept deliberately separate from customer-facing RLS |
 
 ## Conventions going forward
 

@@ -56,6 +56,16 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 | Per-user custom permission overrides | 🚧 | `farm_users.custom_permissions` (JSONB) and the enforcement logic ship now — a sparse per-resource override checked before role defaults. No owner/staff-facing UI to edit it yet ([#23](https://github.com/AndrewMommers/FarmMap/issues/23)) |
 | My Profile (avatar, name, phone) | ✅ | |
 
+## Support & Staff Portal
+
+| Feature | Status | Notes |
+|---|---|---|
+| Customer support tickets (`/support`) | ✅ | Any active farm member can raise a ticket and reply on behalf of their farm — subject, category, threaded messages. Not realtime yet; the thread refreshes on load/action ([#24](https://github.com/AndrewMommers/FarmMap/issues/24)) |
+| FarmMap Staff Portal (`/staff`, hidden — URL only, no nav link) | ✅ | Internal/external staff (gated via a `platform_staff` allowlist, Administrator-only to add external staff) get read access to a customer's farm plus a curated set of fixes: resend a pending invite, toggle active status, change a non-owner role. No general write access to farm operational data — enforced entirely through a service_role Edge Function, not RLS, so it can never leak into a staff member's own ordinary dashboard |
+| Staff ticket queue | ✅ | Cross-tenant queue (filter by status / assigned-to-me), reply as "FarmMap Support," change status, self-assign |
+| Client-side error logging | ✅ | Render errors, unhandled exceptions, and unhandled promise rejections are captured to `client_error_log` and surfaced per-farm in the Staff Portal's Accounts tab — real users' actual errors, not just console output |
+| Staff audit log | 🚧 | Every staff action (view/fix/reply) is logged to `staff_audit_log` from day one, but there's no UI to browse it yet — reading it back means the Supabase dashboard directly ([#24](https://github.com/AndrewMommers/FarmMap/issues/24)) |
+
 ## Account & authentication
 
 | Feature | Status |
@@ -113,7 +123,7 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 | Global error boundary (recoverable fallback on render errors) | ✅ |
 | Row-level security on all farm data | ✅ |
 | Automated test suite | ❌ Not started — no framework installed ([#15](https://github.com/AndrewMommers/FarmMap/issues/15)) |
-| Error tracking / product analytics | ❌ Not started ([#16](https://github.com/AndrewMommers/FarmMap/issues/16)) |
+| Error tracking / product analytics | 🚧 Client-side errors are now captured (`client_error_log`, surfaced to staff per-farm) — usage/product analytics (funnels, feature adoption) still not started ([#16](https://github.com/AndrewMommers/FarmMap/issues/16)) |
 | Billing / subscription | ❌ Not started — app is currently free-to-use with no plan gating ([#17](https://github.com/AndrewMommers/FarmMap/issues/17)) |
 
 ## Tracking

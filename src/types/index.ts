@@ -313,6 +313,40 @@ export interface Announcement {
   createdAt: string;
 }
 
+// ─── Support Tickets ────────────────────────────────────────────────────────
+// Any active farm member can raise/reply to their own farm's tickets (open
+// access, same spirit as Announcements). FarmMap staff read/reply across
+// every farm's tickets through the staff-portal Edge Function, not this
+// client-facing path — see src/pages/staff/StaffPortalPage.tsx.
+
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type TicketCategory = 'account' | 'bug' | 'question' | 'general';
+
+export interface SupportTicket {
+  id: string;
+  farmId: string;
+  subject: string;
+  category: TicketCategory;
+  status: TicketStatus;
+  priority: 'low' | 'normal' | 'high';
+  createdByName: string;
+  createdByEmail: string;
+  /** Set only by staff (self-assign) via the staff-portal function. */
+  assignedStaffEmail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  authorType: 'customer' | 'staff';
+  authorName: string;
+  authorEmail?: string;
+  message: string;
+  createdAt: string;
+}
+
 // ─── Devices (Tractor Mode) ─────────────────────────────────────────────────────
 // A "device" is a browser/tablet registered from inside the cab so it can be
 // named, assigned to an operator, and revoked from Settings. Registration

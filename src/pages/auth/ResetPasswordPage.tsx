@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Wheat, Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -10,6 +9,14 @@ import { Wheat, Eye, EyeOff, Loader2 } from 'lucide-react';
  * asks for a new password, sets it, then signs out and sends the user to
  * /login so they authenticate fresh with the new password rather than
  * silently riding the recovery session into the app.
+ *
+ * Uses a hard `window.location` redirect rather than react-router's
+ * `navigate()`: this page is mounted in App.tsx inside its own standalone
+ * `<BrowserRouter>` with no `<Routes>`, so nothing is listening for a
+ * client-side route change to swap it out — App()'s own top-level pathname
+ * check only re-runs when App() itself re-renders, and a location change
+ * inside this child router doesn't cause that. A full reload re-enters
+ * App()'s routing logic fresh against the now-signed-out session.
  */
 export function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -19,7 +26,6 @@ export function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const { updatePassword, signOut } = useAuthStore();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +40,7 @@ export function ResetPasswordPage() {
 
     setDone(true);
     await signOut();
-    setTimeout(() => navigate('/login', { replace: true }), 1800);
+    setTimeout(() => { window.location.href = '/login'; }, 1800);
   };
 
   return (

@@ -1,6 +1,6 @@
 # FarmMap — Feature Status
 
-A complete inventory of what's built and working versus what isn't, across the public website and the authenticated portal. Compiled by auditing the actual code (not just the marketing copy) as of 2026-08-18.
+A complete inventory of what's built and working versus what isn't, across the public website and the authenticated portal. Compiled by auditing the actual code (not just the marketing copy) as of 2026-08-19.
 
 **Legend:** ✅ complete & verified · 🚧 partial (some actions work, some don't) · ⚠️ built but unverified against a real external system · ❌ not started
 
@@ -33,7 +33,7 @@ See [`docs/versions/`](versions/README.md) for how each of these was built.
 | Equipment — log service | ✅ | Updates last/next service date, clears maintenance status |
 | Finance — transactions & budgets | ✅ | |
 | Inventory | ✅ | |
-| Tasks | ✅ | |
+| Tasks | ✅ | Cards are clickable — opens a full detail pop-up (description, due date, assignee, category, paddock, equipment, notes) with Mark Done/Reopen, Edit, and Delete, not just the inline row buttons |
 | Weather — current conditions & rainfall history | 🚧 | Rainfall vs. long-term average is **not implemented** — `avgRainfallMm` is hardcoded to 0 and never rendered (free Open-Meteo tier has no climate normals). Landing page copy overclaims here. ([#20](https://github.com/AndrewMommers/FarmMap/issues/20)) |
 | Reports — PDF/CSV export (all record types) | ✅ | |
 

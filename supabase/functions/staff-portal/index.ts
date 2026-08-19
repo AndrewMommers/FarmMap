@@ -75,7 +75,19 @@ Deno.serve(async (req) => {
 
       case 'search_farms': {
         const query = String(body.query ?? '').trim();
-        if (!query) return json({ results: [] });
+
+        // No query yet: give staff something to browse rather than a blank
+        // screen — most recently created farms, same idea as an admin
+        // panel's default unfiltered list.
+        if (!query) {
+          const { data: recent, error: recentErr } = await admin
+            .from('farms').select('id, name, owner, region').order('created_at', { ascending: false }).limit(20);
+          if (recentErr) throw recentErr;
+          return json({
+            results: (recent ?? []).map((f) => ({ farmId: f.id, farmName: f.name, owner: f.owner, region: f.region, matchedVia: 'recently created' })),
+          });
+        }
+
         const like = `%${query}%`;
 
         const [byFarm, byUser] = await Promise.all([

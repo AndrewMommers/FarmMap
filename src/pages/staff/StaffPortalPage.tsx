@@ -115,7 +115,6 @@ function AccountsTab() {
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>();
 
   const runSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
     setSearching(true);
     try {
       const res = await callStaffPortal<{ results: FarmSearchResult[] }>('search_farms', { query: q });
@@ -141,6 +140,9 @@ function AccountsTab() {
       <div className="card">
         <SearchBar value={query} onChange={setQuery} placeholder="Search by farm name, owner, or team member email…" />
       </div>
+      {!query.trim() && !searching && results.length > 0 && (
+        <p className="text-xs text-gray-400 px-1">Recently created — search above to narrow down.</p>
+      )}
       {searching && <p className="text-sm text-gray-400">Searching…</p>}
       <div className="space-y-2">
         {results.map((r) => (
@@ -156,8 +158,10 @@ function AccountsTab() {
             <Search className="w-4 h-4 text-gray-300 flex-shrink-0" />
           </button>
         ))}
-        {!searching && query.trim() && results.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-8">No matches for "{query}"</p>
+        {!searching && results.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">
+            {query.trim() ? `No matches for "${query}"` : 'No farms yet.'}
+          </p>
         )}
       </div>
     </div>
